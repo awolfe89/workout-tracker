@@ -8,16 +8,9 @@
   publish = "dist"
   functions = "netlify/functions"
 
-# Set environment variables
+[functions]
+  node_bundler = "esbuild"
+
 [build.environment]
   NODE_VERSION = "18"
   NPM_VERSION = "9"
-
-# Dev server settings
-[dev]
-  command = "npm run dev"
-  port = 8888
-  targetPort = 5173
-  framework = "#custom"
-  publish = "dist"
-  autoLaunch = true

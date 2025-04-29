@@ -5,10 +5,10 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 
-// Import your route files 
-const workoutRoutes = require('../../routes/workoutRoutes');
-const scheduleRoutes = require('../../routes/scheduleRoutes');
-const performanceRoutes = require('../../routes/performanceRoutes');
+// Import your models directly to avoid separate file imports
+const Workout = require('./models/Workout');
+const Schedule = require('./models/Schedule');
+const WorkoutPerformance = require('./models/WorkoutPerformance');
 
 // Create express app
 const app = express();
@@ -24,7 +24,6 @@ const connectDB = async () => {
     console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
     console.error(`Error: ${error.message}`);
-    // Don't exit process in serverless context
     return false;
   }
   return true;
@@ -32,7 +31,7 @@ const connectDB = async () => {
 
 // Middleware
 app.use(cors({
-  origin: '*', // In production, you'd want to restrict this
+  origin: '*',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
@@ -78,15 +77,164 @@ router.get('/', (req, res) => {
   });
 });
 
+// Workout routes
+router.get('/workouts', basicAuth, async (req, res) => {
+  try {
+    const workouts = await Workout.find({});
+    res.json(workouts);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.post('/workouts', basicAuth, async (req, res) => {
+  try {
+    const { name, type, duration, exercises, notes } = req.body;
+    const workout = new Workout({
+      name,
+      type,
+      duration,
+      exercises,
+      notes,
+    });
+    const createdWorkout = await workout.save();
+    res.status(201).json(createdWorkout);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get('/workouts/:id', basicAuth, async (req, res) => {
+  try {
+    const workout = await Workout.findById(req.params.id);
+    if (workout) {
+      res.json(workout);
+    } else {
+      res.status(404).json({ message: 'Workout not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.put('/workouts/:id', basicAuth, async (req, res) => {
+  try {
+    const { name, type, duration, exercises, notes } = req.body;
+    const workout = await Workout.findById(req.params.id);
+    
+    if (workout) {
+      workout.name = name || workout.name;
+      workout.type = type || workout.type;
+      workout.duration = duration || workout.duration;
+      workout.exercises = exercises || workout.exercises;
+      workout.notes = notes !== undefined ? notes : workout.notes;
+      
+      const updatedWorkout = await workout.save();
+      res.json(updatedWorkout);
+    } else {
+      res.status(404).json({ message: 'Workout not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.delete('/workouts/:id', basicAuth, async (req, res) => {
+  try {
+    const workout = await Workout.findById(req.params.id);
+    if (workout) {
+      await workout.deleteOne();
+      res.json({ message: 'Workout removed' });
+    } else {
+      res.status(404).json({ message: 'Workout not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Schedule routes
+router.get('/schedule', basicAuth, async (req, res) => {
+  try {
+    let schedule = await Schedule.findOne({});
+    
+    if (!schedule) {
+      const days = [
+        'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
+      ].map(day => ({
+        day,
+        workouts: []
+      }));
+      
+      schedule = await Schedule.create({ days });
+    }
+    
+    res.json(schedule);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.put('/schedule', basicAuth, async (req, res) => {
+  try {
+    const { days } = req.body;
+    let schedule = await Schedule.findOne({});
+    
+    if (schedule) {
+      schedule.days = days;
+      const updatedSchedule = await schedule.save();
+      res.json(updatedSchedule);
+    } else {
+      schedule = new Schedule({
+        days
+      });
+      
+      const createdSchedule = await schedule.save();
+      res.status(201).json(createdSchedule);
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Performance routes
+router.get('/performance', basicAuth, async (req, res) => {
+  try {
+    const performances = await WorkoutPerformance.find({}).sort({ createdAt: -1 });
+    res.json(performances);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.post('/performance', basicAuth, async (req, res) => {
+  try {
+    const { workoutId, exercises, duration, notes } = req.body;
+    
+    const workout = await Workout.findById(workoutId);
+    if (!workout) {
+      return res.status(404).json({ message: 'Workout not found' });
+    }
+    
+    const performance = new WorkoutPerformance({
+      workoutId,
+      workoutName: workout.name,
+      exercises,
+      duration,
+      notes
+    });
+    
+    const createdPerformance = await performance.save();
+    res.status(201).json(createdPerformance);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // Auth verification endpoint
 router.get('/auth/verify', basicAuth, (req, res) => {
   res.status(200).json({ message: 'Authentication successful' });
 });
-
-// Mount your routes
-router.use('/workouts', basicAuth, workoutRoutes);
-router.use('/schedule', basicAuth, scheduleRoutes);
-router.use('/performance', basicAuth, performanceRoutes);
 
 // Error handling middleware
 const notFound = (req, res, next) => {
@@ -109,6 +257,58 @@ app.use(errorHandler);
 
 // Apply the routes to our application with a base
 app.use('/.netlify/functions/api', router);
+
+// Define Mongoose models inline for the function
+// Workout Model
+const workoutSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+    },
+    type: {
+      type: String,
+      required: true,
+      enum: ['strength', 'cardio', 'hiit', 'flexibility', 'mixed'],
+      default: 'strength',
+    },
+    duration: {
+      type: Number,
+      required: true,
+      default: 45,
+    },
+    exercises: [
+      {
+        name: {
+          type: String,
+          required: true,
+        },
+        sets: {
+          type: Number,
+          required: true,
+          default: 3,
+        },
+        reps: {
+          type: Number,
+          required: true,
+          default: 10,
+        },
+        weight: {
+          type: Number,
+          required: true,
+          default: 0,
+        },
+      }
+    ],
+    notes: {
+      type: String,
+      default: '',
+    }
+  },
+  {
+    timestamps: true,
+  }
+);
 
 // Connect to DB when the function is invoked
 exports.handler = async (event, context) => {
