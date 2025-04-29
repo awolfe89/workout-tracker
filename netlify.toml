@@ -4,12 +4,9 @@
   status = 200
 
 [build]
-  command = "npm install && INLINE_RUNTIME_CHUNK=false npm run build"
+  command = "chmod +x netlify-build.sh && ./netlify-build.sh"
   publish = "dist"
 
 [build.environment]
-  # Force CSS processing to happen
-  VITE_FORCE_POSTCSS = "true"
-  NODE_ENV = "production"
-  # Ensure PostCSS processes all files
-  TAILWIND_MODE = "build"
+  NODE_VERSION = "18"
+  NPM_VERSION = "9"
