@@ -1,4 +1,5 @@
-import mongoose from 'mongoose';
+// models/WorkoutPerformance.js
+const mongoose = require('mongoose');
 
 const setPerformanceSchema = mongoose.Schema({
   setNumber: {
@@ -100,6 +101,5 @@ workoutPerformanceSchema.pre('save', function(next) {
   next();
 });
 
-const WorkoutPerformance = mongoose.model('WorkoutPerformance', workoutPerformanceSchema);
-
-export default WorkoutPerformance;
+module.exports = mongoose.models.WorkoutPerformance || 
+  mongoose.model('WorkoutPerformance', workoutPerformanceSchema);

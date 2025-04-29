@@ -1,7 +1,8 @@
 // src/services/api.js
 
-// Base URL from Vite environment variables
-const API_URL = '/api';
+// Use Netlify Functions API endpoint in production, local dev server otherwise
+const isDev = import.meta.env.DEV;
+const API_URL = isDev ? '/api' : '/.netlify/functions/api';
 
 // Authentication utilities
 export const setCredentials = (username, password) => {

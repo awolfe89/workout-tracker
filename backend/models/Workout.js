@@ -1,4 +1,5 @@
-import mongoose from 'mongoose';
+// models/Workout.js
+const mongoose = require('mongoose');
 
 const exerciseSchema = mongoose.Schema({
   name: {
@@ -50,6 +51,4 @@ const workoutSchema = mongoose.Schema(
   }
 );
 
-const Workout = mongoose.model('Workout', workoutSchema);
-
-export default Workout;
+module.exports = mongoose.models.Workout || mongoose.model('Workout', workoutSchema);

@@ -1,4 +1,5 @@
-import mongoose from 'mongoose';
+// models/Schedule.js
+const mongoose = require('mongoose');
 
 const scheduledWorkoutSchema = mongoose.Schema({
   workoutId: {
@@ -34,7 +35,7 @@ const scheduleSchema = mongoose.Schema(
     user: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: false, // For now, not requiring user authentication
+      required: false, // Not requiring user authentication for now
     },
     days: [dayScheduleSchema],
   },
@@ -43,6 +44,4 @@ const scheduleSchema = mongoose.Schema(
   }
 );
 
-const Schedule = mongoose.model('Schedule', scheduleSchema);
-
-export default Schedule;
+module.exports = mongoose.models.Schedule || mongoose.model('Schedule', scheduleSchema);
