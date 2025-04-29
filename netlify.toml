@@ -4,13 +4,12 @@
   status = 200
 
 [build]
-  command = "npm install --include=dev && npm run build"
+  command = "npm install && INLINE_RUNTIME_CHUNK=false npm run build"
   publish = "dist"
-  functions = "netlify/functions"
-
-[functions]
-  node_bundler = "esbuild"
 
 [build.environment]
-  NODE_VERSION = "18"
-  NPM_VERSION = "9"
+  # Force CSS processing to happen
+  VITE_FORCE_POSTCSS = "true"
+  NODE_ENV = "production"
+  # Ensure PostCSS processes all files
+  TAILWIND_MODE = "build"
