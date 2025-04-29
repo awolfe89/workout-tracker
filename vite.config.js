@@ -4,9 +4,11 @@ const react = require('@vitejs/plugin-react');
 
 module.exports = defineConfig({
   plugins: [react()],
+  css: {
+    postcss: './postcss.config.js',
+  },
   server: {
     proxy: {
-      // any request to /api will go to localhost:5001
       '/api': {
         target: 'http://localhost:5001',
         changeOrigin: true,
