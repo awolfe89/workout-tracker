@@ -252,11 +252,12 @@ const errorHandler = (err, req, res, next) => {
   });
 };
 
-app.use(notFound);
-app.use(errorHandler);
-
-// Apply the routes to our application with a base
-app.use('/.netlify/functions/api', router);
++ // Apply the routes to our application with a base
++ app.use('/.netlify/functions/api', router);
++
++ // Error handling middleware
++ app.use(notFound);
++ app.use(errorHandler);
 
 // Define Mongoose models inline for the function
 // Workout Model
