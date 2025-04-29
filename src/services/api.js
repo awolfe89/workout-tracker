@@ -1,259 +1,97 @@
-// API base URL - change this to match your backend server
-const API_URL = 'http://localhost:5001/api';
+// src/services/api.js
 
-// Authentication state
-let credentials = null;
+// Base URL from Vite environment variables
+const API_URL = '/api';
 
-// Authentication functions
+// Authentication utilities
 export const setCredentials = (username, password) => {
-  credentials = {
-    username,
-    password
-  };
-  
-  // Store in sessionStorage for persistence during page refreshes
-  sessionStorage.setItem('auth', btoa(`${username}:${password}`));
+  const token = btoa(`${username}:${password}`);
+  sessionStorage.setItem('auth', token);
 };
 
 export const clearCredentials = () => {
-  credentials = null;
   sessionStorage.removeItem('auth');
 };
 
 export const isAuthenticated = () => {
-  return credentials !== null || sessionStorage.getItem('auth') !== null;
+  return sessionStorage.getItem('auth') !== null;
 };
 
-// Get authentication header
-const getAuthHeader = () => {
-  if (credentials) {
-    return `Basic ${btoa(`${credentials.username}:${credentials.password}`)}`;
-  }
-  
-  const storedAuth = sessionStorage.getItem('auth');
-  if (storedAuth) {
-    return `Basic ${storedAuth}`;
-  }
-  
-  return null;
-};
-
-// Generic fetch wrapper with error handling
-// api.js (simplified version)
-// Just update the fetchApi function
-
-// Update the fetchApi function in your api.js
-
+// Generic fetch wrapper with authentication and error handling
 async function fetchApi(endpoint, options = {}) {
   const url = `${API_URL}${endpoint}`;
-  
-  // Create new headers object
   const headers = {
     'Content-Type': 'application/json',
     ...options.headers,
   };
-  
-  // Always check for and add auth token
-  try {
-    const authToken = sessionStorage.getItem('auth');
-    console.log(`Auth token for ${endpoint}:`, authToken ? 'Present' : 'Missing');
-    
-    if (authToken) {
-      headers['Authorization'] = `Basic ${authToken}`;
-    }
-  } catch (e) {
-    console.error('Error accessing sessionStorage:', e);
+
+  // Attach auth header if present
+  const authToken = sessionStorage.getItem('auth');
+  if (authToken) {
+    headers['Authorization'] = `Basic ${authToken}`;
   }
-  
-  try {
-    // Log request details for debugging
-    console.log(`Making request to ${endpoint} with Authorization header:`, 
-                headers.Authorization ? 'Present' : 'Missing');
-    
-    const response = await fetch(url, { ...options, headers });
-    
-    // Handle 401 Unauthorized
-    if (response.status === 401) {
-      console.error(`Unauthorized access to ${endpoint}`);
-      
-      // Only redirect if not already on login page
-      if (!window.location.pathname.includes('login')) {
-        console.log('Redirecting to login page due to 401');
-        window.location.href = '/login';
-      }
-      
-      throw new Error('Unauthorized: Please log in');
+
+  const response = await fetch(url, { ...options, headers });
+
+  // Handle unauthorized
+  if (response.status === 401) {
+    if (!window.location.pathname.includes('login')) {
+      window.location.href = '/login';
     }
-    
-    // Check if the response is ok (status 200-299)
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      
-      const error = new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
-      error.status = response.status;
-      error.data = errorData;
-      throw error;
-    }
-    
-    // Parse response
-    const contentType = response.headers.get('Content-Type');
-    if (contentType && contentType.includes('application/json')) {
-      return await response.json();
-    }
-    
-    return await response.text();
-  } catch (error) {
-    console.error('API request failed:', error);
-    throw error;
+    throw new Error('Unauthorized: Please log in');
   }
+
+  // Handle other errors
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+  }
+
+  // Parse JSON or text
+  const contentType = response.headers.get('Content-Type');
+  if (contentType?.includes('application/json')) {
+    return response.json();
+  }
+  return response.text();
 }
 
 // Workout API endpoints
 export const workoutApi = {
-  // Get all workouts
-  getAll: async () => {
-    return await fetchApi('/workouts');
-  },
-  
-  // Get workout by ID
-  getById: async (id) => {
-    return await fetchApi(`/workouts/${id}`);
-  },
-  
-  // Create workout
-  create: async (workoutData) => {
-    return await fetchApi('/workouts', {
-      method: 'POST',
-      body: JSON.stringify(workoutData),
-    });
-  },
-  
-  // Update workout
-  update: async (id, workoutData) => {
-    return await fetchApi(`/workouts/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(workoutData),
-    });
-  },
-  
-  // Delete workout
-  delete: async (id) => {
-    return await fetchApi(`/workouts/${id}`, {
-      method: 'DELETE',
-    });
-  },
-  
-  // Delete all workouts
-  deleteAll: async () => {
-    return await fetchApi('/workouts/all', {
-      method: 'DELETE',
-    });
-  },
+  getAll: () => fetchApi('/workouts'),
+  getById: (id) => fetchApi(`/workouts/${id}`),
+  create: (workoutData) => fetchApi('/workouts', { method: 'POST', body: JSON.stringify(workoutData) }),
+  update: (id, workoutData) => fetchApi(`/workouts/${id}`, { method: 'PUT', body: JSON.stringify(workoutData) }),
+  delete: (id) => fetchApi(`/workouts/${id}`, { method: 'DELETE' }),
+  deleteAll: () => fetchApi('/workouts/all', { method: 'DELETE' }),
 };
 
 // Schedule API endpoints
 export const scheduleApi = {
-  // Get schedule
-  get: async () => {
-    return await fetchApi('/schedule');
-  },
-  
-  // Update schedule
-  update: async (scheduleData) => {
-    return await fetchApi('/schedule', {
-      method: 'PUT',
-      body: JSON.stringify(scheduleData),
-    });
-  },
-  
-  // Update specific day in schedule
-  updateDay: async (day, workouts) => {
-    return await fetchApi(`/schedule/${day}`, {
-      method: 'PUT',
-      body: JSON.stringify({ workouts }),
-    });
-  },
-  
-  // Delete all schedule data
-  deleteAll: async () => {
-    return await fetchApi('/schedule/all', {
-      method: 'DELETE',
-    });
-  },
+  get: () => fetchApi('/schedule'),
+  update: (scheduleData) => fetchApi('/schedule', { method: 'PUT', body: JSON.stringify(scheduleData) }),
+  updateDay: (day, workouts) => fetchApi(`/schedule/${day}`, { method: 'PUT', body: JSON.stringify({ workouts }) }),
+  deleteAll: () => fetchApi('/schedule/all', { method: 'DELETE' }),
 };
 
 // Performance API endpoints
 export const performanceApi = {
-  // Get all performances
-  getAll: async () => {
-    return await fetchApi('/performance');
-  },
-  
-  // Get performance by ID
-  getById: async (id) => {
-    return await fetchApi(`/performance/${id}`);
-  },
-  
-  // Get performances by workout ID
-  getByWorkoutId: async (workoutId) => {
-    return await fetchApi(`/performance/workout/${workoutId}`);
-  },
-  
-  // Create performance
-  create: async (performanceData) => {
-    return await fetchApi('/performance', {
-      method: 'POST',
-      body: JSON.stringify(performanceData),
-    });
-  },
-  
-  // Update performance
-  update: async (id, performanceData) => {
-    return await fetchApi(`/performance/${id}`, {
-      method: 'PUT',
-      body: JSON.stringify(performanceData),
-    });
-  },
-  
-  // Delete performance
-  delete: async (id) => {
-    return await fetchApi(`/performance/${id}`, {
-      method: 'DELETE',
-    });
-  },
-  
-  // Get exercise stats
-  getExerciseStats: async (exerciseName) => {
-    return await fetchApi(`/performance/stats/exercise/${exerciseName}`);
-  },
-  
-  // Get total stats
-  getTotalStats: async () => {
-    return await fetchApi('/performance/stats/totals');
-  },
-  
-  // Delete all performance data
-  deleteAll: async () => {
-    return await fetchApi('/performance/all', {
-      method: 'DELETE',
-    });
-  },
+  getAll: () => fetchApi('/performance'),
+  getById: (id) => fetchApi(`/performance/${id}`),
+  getByWorkoutId: (workoutId) => fetchApi(`/performance/workout/${workoutId}`),
+  create: (performanceData) => fetchApi('/performance', { method: 'POST', body: JSON.stringify(performanceData) }),
+  update: (id, performanceData) => fetchApi(`/performance/${id}`, { method: 'PUT', body: JSON.stringify(performanceData) }),
+  delete: (id) => fetchApi(`/performance/${id}`, { method: 'DELETE' }),
+  getExerciseStats: (exerciseName) => fetchApi(`/performance/stats/exercise/${exerciseName}`),
+  getTotalStats: () => fetchApi('/performance/stats/totals'),
+  deleteAll: () => fetchApi('/performance/all', { method: 'DELETE' }),
 };
 
 // Auth API
 export const authApi = {
-  // Verify credentials
-  verify: async () => {
-    return await fetchApi('/auth/verify');
-  },
+  verify: () => fetchApi('/auth/verify'),
 };
 
-// Utils API for operations affecting multiple collections
+// Utils API
 export const utilsApi = {
-  // Clear all data
-  clearAllData: async () => {
-    return await fetchApi('/utils/clear-all-data', {
-      method: 'DELETE',
-    });
-  },
+  clearAllData: () => fetchApi('/utils/clear-all-data', { method: 'DELETE' }),
 };

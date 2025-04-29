@@ -41,7 +41,7 @@ export default function LoginPage({ onLoginSuccess }) {
       toast.success('Login successful');
       
       // Force a page reload to ensure all components pick up the new auth state
-      window.location.href = '/';
+      onLoginSuccess();
     } catch (error) {
       console.error('Login failed:', error);
       toast.error('Login failed. Please check your credentials.');

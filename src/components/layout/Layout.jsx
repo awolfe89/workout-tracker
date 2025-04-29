@@ -1,21 +1,18 @@
-// src/components/layout/Layout.jsx
+import React from 'react';
+import { Outlet } from 'react-router-dom';
 import Header from './Header';
 import BottomNavigation from './BottomNavigation';
 
-// src/components/layout/Layout.jsx
-export default function Layout({ children, onLogout }) {
+export default function Layout({ onLogout }) {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 pb-16">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <Header onLogout={onLogout} />
-      <main className="max-w-xl mx-auto pt-20 px-4">
-        <div className="py-4">
-          {children}
+      <main className="flex-grow px-4 max-w-4xl mx-auto w-full">
+        <div className="pt-24 pb-24">
+          <Outlet />
         </div>
       </main>
       <BottomNavigation />
-      <footer className="bg-white dark:bg-gray-800 shadow-inner mt-8 py-4 px-4 text-center text-sm text-gray-500 dark:text-gray-400">
-        WorkoutTracker &copy; {new Date().getFullYear()}
-      </footer>
     </div>
   );
 }

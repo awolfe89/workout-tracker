@@ -9,10 +9,10 @@ export default function ProgressPage() {
   
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Progress Tracking</h1>
+      <div className="flex flex-wrap justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-3 sm:mb-0">Progress Tracking</h1>
         
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={() => setActiveTab('exercises')}
             className={`btn ${activeTab === 'exercises' ? 'btn-primary' : 'btn-secondary'}`}

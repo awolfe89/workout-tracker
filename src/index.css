@@ -8,36 +8,51 @@
   }
   
   body {
-    @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
-  }
-}
-
-@layer components {
-  .btn {
-    @apply px-4 py-2 rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2;
+    overflow-x: hidden;
   }
   
-  .btn-primary {
-    @apply bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500;
+  /* Ensure modals appear above the fixed header and navigation */
+  .modal, 
+  .modal-overlay {
+    z-index: 50;
   }
   
-  .btn-secondary {
-    @apply bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-500 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600;
+  /* Improve tap targets on mobile */
+  button, 
+  a {
+    touch-action: manipulation;
   }
   
-  .btn-danger {
-    @apply bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  /* Proper scrolling on iOS */
+  html, body {
+    -webkit-overflow-scrolling: touch;
   }
   
-  .card {
-    @apply bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden;
+  /* Adjust font sizes on very small screens */
+  @media (max-width: 320px) {
+    .text-xl {
+      font-size: 1.1rem;
+    }
+    
+    .text-2xl {
+      font-size: 1.25rem;
+    }
+    
+    .btn {
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+    }
   }
   
-  .input {
-    @apply w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white;
+  /* Add smooth scrolling */
+  html {
+    scroll-behavior: smooth;
   }
   
-  .label {
-    @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1;
+  /* Ensure bottom navigation has proper spacing */
+  @media (max-height: 500px) {
+    .pb-24 {
+      padding-bottom: 5rem;
+    }
   }
 }
