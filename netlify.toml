@@ -2,11 +2,3 @@
   from = "/*"
   to = "/index.html"
   status = 200
-
-[build]
-  command = "chmod +x netlify-build.sh && ./netlify-build.sh"
-  publish = "dist"
-
-[build.environment]
-  NODE_VERSION = "18"
-  NPM_VERSION = "9"
