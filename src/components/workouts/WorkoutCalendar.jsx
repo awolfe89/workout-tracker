@@ -69,8 +69,8 @@ export default function WorkoutCalendar() {
         });
       }
       
-      // Use the scheduleApi to update a specific day
-      await scheduleApi.updateDay(day, workoutDetails);
+      // Update the entire schedule with the modified days array
+      await scheduleApi.update({ days: updatedDays });
       
       // Update local state for immediate UI update
       const newScheduledWorkouts = { ...scheduledWorkouts };
