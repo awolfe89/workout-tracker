@@ -14,9 +14,7 @@ export const clearCredentials = () => {
   sessionStorage.removeItem('auth');
 };
 
-export const isAuthenticated = () => {
-  return sessionStorage.getItem('auth') !== null;
-};
+export const isAuthenticated = () => sessionStorage.getItem('auth') !== null;
 
 // Generic fetch wrapper with authentication and error handling
 async function fetchApi(endpoint, options = {}) {
@@ -34,12 +32,10 @@ async function fetchApi(endpoint, options = {}) {
 
   const response = await fetch(url, { ...options, headers });
 
-  // Handle unauthorized
+  // Handle unauthorized (no forced redirect)
   if (response.status === 401) {
-        // Clear stored credentials
-        sessionStorage.removeItem('auth');
-        // Throw and let the React app handle navigation
-        throw new Error('Unauthorized: Please log in');
+    clearCredentials();
+    throw new Error('Unauthorized: Please log in');
   }
 
   // Handle other errors
@@ -49,8 +45,8 @@ async function fetchApi(endpoint, options = {}) {
   }
 
   // Parse JSON or text
-  const contentType = response.headers.get('Content-Type');
-  if (contentType?.includes('application/json')) {
+  const contentType = response.headers.get('Content-Type') || '';
+  if (contentType.includes('application/json')) {
     return response.json();
   }
   return response.text();
