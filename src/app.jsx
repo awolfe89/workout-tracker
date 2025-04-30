@@ -1,6 +1,8 @@
+// src/app.jsx
 import React, { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { WorkoutProvider } from './context/WorkoutContext';
+import { isAuthenticated, clearCredentials } from './services/api';
 import Layout from './components/layout/Layout';
 import LoginPage from './pages/LoginPage';
 import WorkoutsPage from './pages/WorkoutsPage';
@@ -9,20 +11,17 @@ import SchedulePage from './pages/SchedulePage';
 import SettingsPage from './pages/SettingsPage';
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(
-    () => sessionStorage.getItem('auth') !== null
-  );
+  const [isLoggedIn, setIsLoggedIn] = useState(isAuthenticated());
 
   const handleLoginSuccess = () => setIsLoggedIn(true);
   const handleLogout = () => {
-    sessionStorage.removeItem('auth');
+    clearCredentials();
     setIsLoggedIn(false);
   };
 
   return (
     <WorkoutProvider>
       <Routes>
-        {/* Public route for login */}
         <Route
           path="/login"
           element={
@@ -32,7 +31,6 @@ function App() {
           }
         />
 
-        {/* Protected routes wrapped in Layout */}
         <Route element={<Layout onLogout={handleLogout} />}>
           <Route
             path="/"
@@ -68,7 +66,6 @@ function App() {
           />
         </Route>
 
-        {/* Fallback route */}
         <Route
           path="*"
           element={<Navigate to={isLoggedIn ? "/" : "/login"} replace />}
