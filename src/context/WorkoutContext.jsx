@@ -1,9 +1,14 @@
-import React, { createContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { performanceApi, workoutApi } from '../services/api';
 
-// Create context
-export const WorkoutContext = createContext();
+// Create the context
+const WorkoutContext = createContext();
+
+// Custom hook for consuming context
+export function useWorkout() {
+  return useContext(WorkoutContext);
+}
 
 // Provider component
 export function WorkoutProvider({ children }) {
@@ -46,7 +51,7 @@ export function WorkoutProvider({ children }) {
   const addWorkout = async (workout) => {
     try {
       const saved = await workoutApi.create(workout);
-      setWorkouts((prev) => [...prev, saved]);
+      setWorkouts(prev => [...prev, saved]);
       return saved;
     } catch (err) {
       if (err.message.startsWith('Unauthorized')) {
@@ -71,19 +76,19 @@ export function WorkoutProvider({ children }) {
     fetchPerformances();
   }, []);
 
+  const value = {
+    workouts,
+    performances,
+    activeWorkout,
+    setActiveWorkout,
+    addWorkout,
+    fetchWorkouts,
+    fetchPerformances,
+    finishWorkout
+  };
+
   return (
-    <WorkoutContext.Provider
-      value={{
-        workouts,
-        performances,
-        activeWorkout,
-        setActiveWorkout,
-        addWorkout,
-        fetchWorkouts,
-        fetchPerformances,
-        finishWorkout
-      }}
-    >
+    <WorkoutContext.Provider value={value}>
       {children}
     </WorkoutContext.Provider>
   );
