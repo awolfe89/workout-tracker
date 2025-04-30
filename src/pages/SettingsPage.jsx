@@ -1,16 +1,21 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { scheduleApi, clearCredentials } from '../services/api';
+import { scheduleApi, clearCredentials, isAuthenticated } from '../services/api';
 import { useWorkout } from '../context/WorkoutContext';
-
-const { workouts } = useWorkout();
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const { workouts } = useContext(WorkoutContext);
+  const { workouts } = useWorkout();
   const [schedule, setSchedule] = useState(null);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      navigate('/login', { replace: true });
+    }
+  }, [navigate]);
 
   // Load schedule on mount
   useEffect(() => {
