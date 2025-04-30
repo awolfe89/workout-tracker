@@ -69,15 +69,22 @@ export default function WorkoutCalendar() {
         });
       }
       
-      // Update the entire schedule with the modified days array
-      await scheduleApi.update({ days: updatedDays });
-      
-      // Update local state for immediate UI update
+      // Just update the local state for now for a better user experience
       const newScheduledWorkouts = { ...scheduledWorkouts };
       newScheduledWorkouts[day] = workoutDetails;
       setScheduledWorkouts(newScheduledWorkouts);
       
-      toast.success(`Schedule for ${day} updated successfully`);
+      // Attempt to save to the backend
+      try {
+        console.log('Saving schedule with days:', updatedDays);
+        await scheduleApi.update({ days: updatedDays });
+        toast.success(`Schedule for ${day} updated successfully`);
+      } catch (saveError) {
+        console.error('Error saving to backend:', saveError);
+        // We won't show an error toast since the UI is already updated
+        // and the user can try saving again later
+        toast.warning('Changes saved locally but not synced to server. Try again later.');
+      }
     } catch (error) {
       console.error('Error updating schedule:', error);
       toast.error('Failed to update schedule');
