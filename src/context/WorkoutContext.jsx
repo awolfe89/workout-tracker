@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { performanceApi, workoutApi } from '../services/api';
+import { isAuthenticated } from '../services/api';
 
 // Create the context
-const WorkoutContext = createContext();
+export const WorkoutContext = createContext();
 
 // Custom hook for consuming context
 export function useWorkout() {
@@ -72,9 +73,13 @@ export function WorkoutProvider({ children }) {
 
   // On mount, load initial data
   useEffect(() => {
+    if (!isAuthenticated()) {
+      navigate('/login', { replace: true });
+      return;
+    }
     fetchWorkouts();
     fetchPerformances();
-  }, []);
+  }, [navigate]);
 
   const value = {
     workouts,

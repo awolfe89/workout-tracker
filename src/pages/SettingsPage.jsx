@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { scheduleApi, clearCredentials } from '../services/api';
-import { WorkoutContext } from '../context/WorkoutContext';
+import { useWorkout } from '../context/WorkoutContext';
+
+const { workouts } = useWorkout();
 
 export default function SettingsPage() {
   const navigate = useNavigate();

@@ -7,14 +7,14 @@ const API_URL = isDev ? '/api' : '/.netlify/functions/api';
 // Authentication utilities
 export const setCredentials = (username, password) => {
   const token = btoa(`${username}:${password}`);
-  sessionStorage.setItem('auth', token);
+  localStorage.setItem('auth', token);
 };
 
 export const clearCredentials = () => {
-  sessionStorage.removeItem('auth');
+  localStorage.setItem('auth', token);
 };
 
-export const isAuthenticated = () => sessionStorage.getItem('auth') !== null;
+export const isAuthenticated = () => localStorage.getItem('auth') !== null;
 
 // Generic fetch wrapper with authentication and error handling
 async function fetchApi(endpoint, options = {}) {
