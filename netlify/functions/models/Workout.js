@@ -1,7 +1,6 @@
-// netlify/functions/models/Workout.js
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
-const exerciseSchema = new mongoose.Schema({
+const exerciseSchema = mongoose.Schema({
   name: {
     type: String,
     required: true,
@@ -23,7 +22,7 @@ const exerciseSchema = new mongoose.Schema({
   },
 });
 
-const workoutSchema = new mongoose.Schema(
+const workoutSchema = mongoose.Schema(
   {
     name: {
       type: String,
@@ -51,5 +50,7 @@ const workoutSchema = new mongoose.Schema(
   }
 );
 
-// Check if the model already exists to prevent recompilation errors
-module.exports = mongoose.models.Workout || mongoose.model('Workout', workoutSchema);
+// Check if the model already exists
+const Workout = mongoose.models.Workout || mongoose.model('Workout', workoutSchema);
+
+export default Workout;

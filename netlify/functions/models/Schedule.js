@@ -1,7 +1,6 @@
-// netlify/functions/models/Schedule.js
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
-const scheduledWorkoutSchema = new mongoose.Schema({
+const scheduledWorkoutSchema = mongoose.Schema({
   workoutId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Workout',
@@ -21,7 +20,7 @@ const scheduledWorkoutSchema = new mongoose.Schema({
   },
 });
 
-const dayScheduleSchema = new mongoose.Schema({
+const dayScheduleSchema = mongoose.Schema({
   day: {
     type: String,
     required: true,
@@ -30,7 +29,7 @@ const dayScheduleSchema = new mongoose.Schema({
   workouts: [scheduledWorkoutSchema],
 });
 
-const scheduleSchema = new mongoose.Schema(
+const scheduleSchema = mongoose.Schema(
   {
     user: {
       type: mongoose.Schema.Types.ObjectId,
@@ -44,5 +43,7 @@ const scheduleSchema = new mongoose.Schema(
   }
 );
 
-// Check if the model already exists to prevent recompilation errors
-module.exports = mongoose.models.Schedule || mongoose.model('Schedule', scheduleSchema);
+// Check if the model already exists to prevent model overwrite errors
+const Schedule = mongoose.models.Schedule || mongoose.model('Schedule', scheduleSchema);
+
+export default Schedule;

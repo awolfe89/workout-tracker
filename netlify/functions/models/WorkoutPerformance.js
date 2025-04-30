@@ -1,7 +1,6 @@
-// netlify/functions/models/WorkoutPerformance.js
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
-const setPerformanceSchema = new mongoose.Schema({
+const setPerformanceSchema = mongoose.Schema({
   setNumber: {
     type: Number,
     required: true,
@@ -21,7 +20,7 @@ const setPerformanceSchema = new mongoose.Schema({
   }
 });
 
-const exercisePerformanceSchema = new mongoose.Schema({
+const exercisePerformanceSchema = mongoose.Schema({
   exerciseName: {
     type: String,
     required: true,
@@ -37,7 +36,7 @@ const exercisePerformanceSchema = new mongoose.Schema({
   }
 });
 
-const workoutPerformanceSchema = new mongoose.Schema(
+const workoutPerformanceSchema = mongoose.Schema(
   {
     workoutId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -101,5 +100,8 @@ workoutPerformanceSchema.pre('save', function(next) {
   next();
 });
 
-// Check if the model already exists to prevent recompilation errors
-module.exports = mongoose.models.WorkoutPerformance || mongoose.model('WorkoutPerformance', workoutPerformanceSchema);
+// Check if the model already exists
+const WorkoutPerformance = mongoose.models.WorkoutPerformance || 
+  mongoose.model('WorkoutPerformance', workoutPerformanceSchema);
+
+export default WorkoutPerformance;
