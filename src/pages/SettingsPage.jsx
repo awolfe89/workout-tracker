@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { scheduleApi, clearCredentials, isAuthenticated } from '../services/api';
-import { useWorkout } from '../context/WorkoutContext';
+import { scheduleApi, workoutApi, clearCredentials, isAuthenticated } from '../services/api';
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const { workouts } = useWorkout();
+  const [workouts, setWorkouts] = useState([]);
   const [schedule, setSchedule] = useState(null);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -17,23 +16,27 @@ export default function SettingsPage() {
     }
   }, [navigate]);
 
-  // Load schedule on mount
+  // Load both schedule and workouts on mount
   useEffect(() => {
-    async function loadSchedule() {
+    async function loadData() {
       try {
-        const data = await scheduleApi.get();
-        setSchedule(data);
+        const [sched, wts] = await Promise.all([
+          scheduleApi.get(),
+          workoutApi.getAll()
+        ]);
+        setSchedule(sched);
+        setWorkouts(wts);
       } catch (err) {
         if (err.message.startsWith('Unauthorized')) {
           clearCredentials();
           navigate('/login', { replace: true });
         } else {
-          console.error('Error loading schedule:', err);
-          setError('Failed to load schedule.');
+          console.error('Error loading data:', err);
+          setError('Failed to load schedule or workouts.');
         }
       }
     }
-    loadSchedule();
+    loadData();
   }, [navigate]);
 
   const handleWorkoutsChange = (dayIndex, selectedIds) => {
@@ -65,7 +68,9 @@ export default function SettingsPage() {
   };
 
   if (error) return <div className="p-4 text-red-600">{error}</div>;
-  if (!schedule) return <div className="p-4">Loading schedule…</div>;
+  if (!schedule || workouts.length === 0) {
+    return <div className="p-4">Loading schedule & workouts…</div>;
+  }
 
   return (
     <div className="space-y-6 p-6">
