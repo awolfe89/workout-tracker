@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { WorkoutContext } from '../context/WorkoutContext';
-import { performanceApi } from '../services/api';
+import { WorkoutContext } from '../../context/WorkoutContext';
+import { performanceApi } from '../../services/api';
 import toast from 'react-hot-toast';
 
 export default function ActiveWorkout() {
