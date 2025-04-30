@@ -133,6 +133,18 @@ app.use((err, _req, res, _next) => { const code = res.statusCode === 200 ? 500 :
 // --- Export Netlify handler ---
 exports.handler = async (event, context) => {
   context.callbackWaitsForEmptyEventLoop = false;
-  await connectDB();
-  return serverless(app)(event, context);
+  try {
+    // Ensure DB connection
+    await connectDB();
+    // Invoke the Express app via serverless-http
+    const invoke = serverless(app);
+    const response = await invoke(event, context);
+    return response;
+  } catch (err) {
+    console.error('API error:', err);
+    return {
+      statusCode: err.statusCode || 500,
+      body: JSON.stringify({ message: err.message })
+    };
+  }
 };
