@@ -1,78 +1,69 @@
 // src/app.jsx
-import React, { useState } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { WorkoutProvider } from './context/WorkoutContext';
+import React from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { isAuthenticated, clearCredentials } from './services/api';
 import Layout from './components/layout/Layout';
 import LoginPage from './pages/LoginPage';
 import WorkoutsPage from './pages/WorkoutsPage';
-import StatsPage from './pages/ProgressPage';
-import SchedulePage from './pages/SchedulePage';
+import ProgressPage from './pages/ProgressPage';
 import SettingsPage from './pages/SettingsPage';
 
-function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(isAuthenticated());
+function Private({ children }) {
+  return isAuthenticated() ? children : <Navigate to="/login" replace />;
+}
 
-  const handleLoginSuccess = () => setIsLoggedIn(true);
-  const handleLogout = () => {
-    clearCredentials();
-    setIsLoggedIn(false);
-  };
-
+export default function App() {
   return (
-    <WorkoutProvider>
+    <BrowserRouter>
       <Routes>
+        {/* Public */}
         <Route
           path="/login"
           element={
-            isLoggedIn
-              ? <Navigate to="/" replace />
-              : <LoginPage onLoginSuccess={handleLoginSuccess} />
+            isAuthenticated() ? <Navigate to="/" replace /> : <LoginPage />
           }
         />
 
-        <Route element={<Layout onLogout={handleLogout} />}>
-          <Route
-            path="/"
-            element={
-              isLoggedIn
-                ? <WorkoutsPage />
-                : <Navigate to="/login" replace />
-            }
-          />
-          <Route
-            path="/stats"
-            element={
-              isLoggedIn
-                ? <StatsPage />
-                : <Navigate to="/login" replace />
-            }
-          />
-          <Route
-            path="/schedule"
-            element={
-              isLoggedIn
-                ? <SchedulePage />
-                : <Navigate to="/login" replace />
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              isLoggedIn
-                ? <SettingsPage />
-                : <Navigate to="/login" replace />
-            }
-          />
-        </Route>
+        {/* Protected */}
+        <Route
+          path="/"
+          element={
+            <Private>
+              <Layout onLogout={() => { clearCredentials(); window.location.reload(); }}>
+                <WorkoutsPage />
+              </Layout>
+            </Private>
+          }
+        />
+        <Route
+          path="/stats/*"
+          element={
+            <Private>
+              <Layout onLogout={() => { clearCredentials(); window.location.reload(); }}>
+                <ProgressPage />
+              </Layout>
+            </Private>
+          }
+        />
+        <Route
+          path="/schedule"
+          element={
+            <Private>
+              <Layout onLogout={() => { clearCredentials(); window.location.reload(); }}>
+                <SettingsPage />
+              </Layout>
+            </Private>
+          }
+        />
 
+        {/* Catch-all */}
         <Route
           path="*"
-          element={<Navigate to={isLoggedIn ? "/" : "/login"} replace />}
+          element={
+            isAuthenticated() ? <Navigate to="/" replace /> : <Navigate to="/login" replace />
+          }
         />
       </Routes>
-    </WorkoutProvider>
+    </BrowserRouter>
   );
 }
-
-export default App;

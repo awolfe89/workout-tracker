@@ -1,94 +1,65 @@
 // src/services/api.js
 
-// Use Netlify Functions API endpoint in production, local dev server otherwise
+// Decide API root based on dev vs. prod
 const isDev = import.meta.env.DEV;
-const API_URL = isDev ? '/api' : '/.netlify/functions/api';
+const API_ROOT = isDev ? '/api' : '/.netlify/functions/api';
 
-// Authentication utilities
-export const setCredentials = (username, password) => {
+// — Auth helpers
+export function setCredentials(username, password) {
   const token = btoa(`${username}:${password}`);
   localStorage.setItem('auth', token);
-};
+}
 
-export const clearCredentials = () => {
-  localStorage.setItem('auth', token);
-};
+export function clearCredentials() {
+  localStorage.removeItem('auth');
+}
 
-export const isAuthenticated = () => localStorage.getItem('auth') !== null;
+export function isAuthenticated() {
+  return localStorage.getItem('auth') !== null;
+}
 
-// Generic fetch wrapper with authentication and error handling
+// — Core fetch wrapper
 async function fetchApi(endpoint, options = {}) {
-  const url = `${API_URL}${endpoint}`;
-  const headers = {
-    'Content-Type': 'application/json',
-    ...options.headers,
-  };
+  const url = `${API_ROOT}${endpoint}`;
+  const headers = { 'Content-Type': 'application/json', ...options.headers };
 
-  // Attach auth header if present
-  const authToken = sessionStorage.getItem('auth');
-  if (authToken) {
-    headers['Authorization'] = `Basic ${authToken}`;
-  }
+  // Attach stored token, if any
+  const token = localStorage.getItem('auth');
+  if (token) headers['Authorization'] = `Basic ${token}`;
 
   const response = await fetch(url, { ...options, headers });
 
-  // Handle unauthorized (no forced redirect)
   if (response.status === 401) {
-    clearCredentials();
-    throw new Error('Unauthorized: Please log in');
+    // Let the React layer handle redirects
+    throw new Error('Unauthorized');
   }
-
-  // Handle other errors
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `Error ${response.status}: ${response.statusText}`);
+    const errBody = await response.json().catch(() => ({}));
+    throw new Error(errBody.message || `Error ${response.status}`);
   }
-
-  // Parse JSON or text
-  const contentType = response.headers.get('Content-Type') || '';
-  if (contentType.includes('application/json')) {
-    return response.json();
-  }
-  return response.text();
+  // Parse JSON
+  return response.headers.get('Content-Type')?.includes('json')
+    ? response.json()
+    : response.text();
 }
 
-// Workout API endpoints
-export const workoutApi = {
-  getAll: () => fetchApi('/workouts'),
-  getById: (id) => fetchApi(`/workouts/${id}`),
-  create: (workoutData) => fetchApi('/workouts', { method: 'POST', body: JSON.stringify(workoutData) }),
-  update: (id, workoutData) => fetchApi(`/workouts/${id}`, { method: 'PUT', body: JSON.stringify(workoutData) }),
-  delete: (id) => fetchApi(`/workouts/${id}`, { method: 'DELETE' }),
-  deleteAll: () => fetchApi('/workouts/all', { method: 'DELETE' }),
-};
-
-// Schedule API endpoints
-export const scheduleApi = {
-  get: () => fetchApi('/schedule'),
-  update: (scheduleData) => fetchApi('/schedule', { method: 'PUT', body: JSON.stringify(scheduleData) }),
-  updateDay: (day, workouts) => fetchApi(`/schedule/${day}`, { method: 'PUT', body: JSON.stringify({ workouts }) }),
-  deleteAll: () => fetchApi('/schedule/all', { method: 'DELETE' }),
-};
-
-// Performance API endpoints
-export const performanceApi = {
-  getAll: () => fetchApi('/performance'),
-  getById: (id) => fetchApi(`/performance/${id}`),
-  getByWorkoutId: (workoutId) => fetchApi(`/performance/workout/${workoutId}`),
-  create: (performanceData) => fetchApi('/performance', { method: 'POST', body: JSON.stringify(performanceData) }),
-  update: (id, performanceData) => fetchApi(`/performance/${id}`, { method: 'PUT', body: JSON.stringify(performanceData) }),
-  delete: (id) => fetchApi(`/performance/${id}`, { method: 'DELETE' }),
-  getExerciseStats: (exerciseName) => fetchApi(`/performance/stats/exercise/${exerciseName}`),
-  getTotalStats: () => fetchApi('/performance/stats/totals'),
-  deleteAll: () => fetchApi('/performance/all', { method: 'DELETE' }),
-};
-
-// Auth API
+// — Exposed APIs
 export const authApi = {
   verify: () => fetchApi('/auth/verify'),
 };
 
-// Utils API
-export const utilsApi = {
-  clearAllData: () => fetchApi('/utils/clear-all-data', { method: 'DELETE' }),
+export const workoutApi = {
+  getAll: () => fetchApi('/workouts'),
+  create: (data) => fetchApi('/workouts', { method: 'POST', body: JSON.stringify(data) }),
+  // …add/update/delete as needed…
+};
+
+export const scheduleApi = {
+  get: () => fetchApi('/schedule'),
+  update: (data) => fetchApi('/schedule', { method: 'PUT', body: JSON.stringify(data) }),
+};
+
+export const performanceApi = {
+  getAll: () => fetchApi('/performance'),
+  create: (data) => fetchApi('/performance', { method: 'POST', body: JSON.stringify(data) }),
 };
