@@ -1,109 +1,58 @@
-import React, { useState, useEffect } from 'react';
+// src/pages/SettingsPage.jsx
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { scheduleApi, workoutApi, clearCredentials, isAuthenticated } from '../services/api';
+import { clearCredentials } from '../services/api';
+import { toast } from 'react-hot-toast';
+import { useTheme } from '../components/layout/ThemeProvider'; // If you have this component
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const [workouts, setWorkouts] = useState([]);
-  const [schedule, setSchedule] = useState(null);
-  const [error, setError] = useState(null);
-  const [saving, setSaving] = useState(false);
-
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      navigate('/login', { replace: true });
-    }
-  }, [navigate]);
-
-  // Load both schedule and workouts on mount
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [sched, wts] = await Promise.all([
-          scheduleApi.get(),
-          workoutApi.getAll()
-        ]);
-        setSchedule(sched);
-        setWorkouts(wts);
-      } catch (err) {
-        if (err.message.startsWith('Unauthorized')) {
-          clearCredentials();
-          navigate('/login', { replace: true });
-        } else {
-          console.error('Error loading data:', err);
-          setError('Failed to load schedule or workouts.');
-        }
-      }
-    }
-    loadData();
-  }, [navigate]);
-
-  const handleWorkoutsChange = (dayIndex, selectedIds) => {
-    setSchedule(prev => {
-      const days = [...prev.days];
-      days[dayIndex].workouts = selectedIds;
-      return { ...prev, days };
-    });
+  const { theme, setTheme } = useTheme || { theme: 'light', setTheme: () => {} };
+  
+  const handleLogout = () => {
+    clearCredentials();
+    toast.success('Logged out successfully');
+    navigate('/login', { replace: true });
   };
-
-  const handleSave = async () => {
-    if (!schedule) return;
-    setSaving(true);
-    try {
-      const updated = await scheduleApi.update({ days: schedule.days });
-      setSchedule(updated);
-      setError(null);
-    } catch (err) {
-      if (err.message.startsWith('Unauthorized')) {
-        clearCredentials();
-        navigate('/login', { replace: true });
-      } else {
-        console.error('Error saving schedule:', err);
-        setError('Failed to save schedule.');
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (error) return <div className="p-4 text-red-600">{error}</div>;
-  if (!schedule || workouts.length === 0) {
-    return <div className="p-4">Loading schedule & workouts…</div>;
-  }
-
+  
   return (
-    <div className="space-y-6 p-6">
-      <h1 className="text-2xl font-bold">Weekly Workout Schedule</h1>
-
-      {schedule.days.map((dayObj, idx) => (
-        <div key={dayObj.day} className="border rounded p-4">
-          <h2 className="font-semibold mb-2">{dayObj.day}</h2>
-          <select
-            multiple
-            value={dayObj.workouts}
-            onChange={e => handleWorkoutsChange(
-              idx,
-              Array.from(e.target.selectedOptions, o => o.value)
-            )}
-            className="w-full h-32 border rounded p-2"
-          >
-            {workouts.map(w => (
-              <option key={w._id || w.id} value={w._id || w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
+      </div>
+      
+      <div className="card p-6">
+        <h2 className="text-lg font-medium mb-4">Application Settings</h2>
+        
+        <div className="space-y-4">
+          {/* Theme toggle - if you have ThemeProvider */}
+          <div className="flex justify-between items-center">
+            <span className="text-gray-700 dark:text-gray-300">Dark Mode</span>
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className={`px-3 py-1 rounded-md ${
+                theme === 'dark' 
+                  ? 'bg-blue-500 text-white' 
+                  : 'bg-gray-200 text-gray-800'
+              }`}
+            >
+              {theme === 'dark' ? 'On' : 'Off'}
+            </button>
+          </div>
+          
+          {/* Other settings can go here */}
+          
+          {/* Logout button */}
+          <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+            <button
+              onClick={handleLogout}
+              className="w-full py-2 px-4 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+            >
+              Sign Out
+            </button>
+          </div>
         </div>
-      ))}
-
-      <button
-        className="btn btn-primary"
-        onClick={handleSave}
-        disabled={saving}
-      >
-        {saving ? 'Saving…' : 'Save Schedule'}
-      </button>
+      </div>
     </div>
   );
 }
