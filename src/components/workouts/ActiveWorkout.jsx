@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useContext } from 'react';
-import { WorkoutContext } from '../../context/WorkoutContext';
+import React, { useState, useEffect } from 'react';
+import { useWorkout } from '../../context/WorkoutContext';
 import { performanceApi } from '../../services/api';
 import toast from 'react-hot-toast';
 
 export default function ActiveWorkout() {
-  const { activeWorkout, finishWorkout } = useContext(WorkoutContext);
+  // Use the custom hook to access workout context
+  const { activeWorkout, finishWorkout } = useWorkout();
   const { id, name, exercises = [] } = activeWorkout || {};
 
   const [timer, setTimer] = useState(0);
