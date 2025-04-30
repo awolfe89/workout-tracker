@@ -1,21 +1,35 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import ProgressChart from '../components/stats/ProgressChart';
 import HistoricalData from '../components/stats/HistoricalData';
 import ExerciseProgress from '../components/stats/ExerciseProgress';
 import WorkoutHistory from '../components/workouts/WorkoutHistory';
 
-// Define available tabs and labels
+// Define available tabs and their routes
 const TABS = [
-  { id: 'exercises', label: 'Exercises' },
-  { id: 'history', label: 'Workout History' },
-  { id: 'charts', label: 'Charts' },
-  { id: 'data', label: 'Data' },
+  { id: 'exercises', label: 'Exercises', path: '/stats/exercises' },
+  { id: 'history', label: 'Workout History', path: '/stats/history' },
+  { id: 'charts', label: 'Charts', path: '/stats/charts' },
+  { id: 'data', label: 'Data', path: '/stats/data' }
 ];
 
 export default function ProgressPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('history');
 
-  // Render content based on the active tab
+  // Sync tab when the URL changes
+  useEffect(() => {
+    const match = TABS.find(tab => tab.path === location.pathname);
+    setActiveTab(match ? match.id : 'history');
+  }, [location.pathname]);
+
+  // When user clicks a tab, update both state and URL
+  const handleTabClick = (tab) => {
+    setActiveTab(tab.id);
+    navigate(tab.path);
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'exercises':
@@ -42,10 +56,8 @@ export default function ProgressPage() {
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
-              className={`btn ${
-                activeTab === tab.id ? 'btn-primary' : 'btn-secondary'
-              }`}
+              onClick={() => handleTabClick(tab)}
+              className={`btn ${activeTab === tab.id ? 'btn-primary' : 'btn-secondary'}`}
             >
               {tab.label}
             </button>

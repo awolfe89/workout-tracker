@@ -36,10 +36,10 @@ async function fetchApi(endpoint, options = {}) {
 
   // Handle unauthorized
   if (response.status === 401) {
-    if (!window.location.pathname.includes('login')) {
-      window.location.href = '/login';
-    }
-    throw new Error('Unauthorized: Please log in');
+        // Clear stored credentials
+        sessionStorage.removeItem('auth');
+        // Throw and let the React app handle navigation
+        throw new Error('Unauthorized: Please log in');
   }
 
   // Handle other errors
