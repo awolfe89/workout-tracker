@@ -18,7 +18,7 @@ export function isAuthenticated() {
   return localStorage.getItem('auth') !== null;
 }
 
-// — Core fetch wrapper with improved error handling
+// — Core fetch wrapper
 async function fetchApi(endpoint, options = {}) {
   const url = `${API_ROOT}${endpoint}`;
   const headers = { 'Content-Type': 'application/json', ...options.headers };
@@ -27,31 +27,20 @@ async function fetchApi(endpoint, options = {}) {
   const token = localStorage.getItem('auth');
   if (token) headers['Authorization'] = `Basic ${token}`;
 
-  try {
-    const response = await fetch(url, { ...options, headers });
+  const response = await fetch(url, { ...options, headers });
 
-    // Handle authentication errors consistently
-    if (response.status === 401) {
-      // Clear credentials on auth failure
-      clearCredentials();
-      throw new Error('Unauthorized: Please log in again');
-    }
-    
-    if (!response.ok) {
-      const errBody = await response.json().catch(() => ({}));
-      throw new Error(errBody.message || `Error ${response.status}: ${response.statusText}`);
-    }
-    
-    // Parse JSON response or return text
-    if (response.headers.get('Content-Type')?.includes('json')) {
-      return await response.json();
-    } else {
-      return await response.text();
-    }
-  } catch (error) {
-    console.error(`API Error (${url}):`, error);
-    throw error;
+  if (response.status === 401) {
+    // Let the React layer handle redirects
+    throw new Error('Unauthorized');
   }
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    throw new Error(errBody.message || `Error ${response.status}`);
+  }
+  // Parse JSON
+  return response.headers.get('Content-Type')?.includes('json')
+    ? response.json()
+    : response.text();
 }
 
 // — Exposed APIs
@@ -70,13 +59,24 @@ export const workoutApi = {
 export const scheduleApi = {
   get: () => fetchApi('/schedule'),
   update: (data) => fetchApi('/schedule', { method: 'PUT', body: JSON.stringify(data) }),
-  updateDay: (day, data) => fetchApi(`/schedule/${day}`, { method: 'PUT', body: JSON.stringify(data) }),
+  updateDay: (day, workouts) => {
+    // Make sure the day and workouts are valid
+    if (!day || !Array.isArray(workouts)) {
+      console.error('Invalid day or workouts:', { day, workouts });
+      return Promise.reject(new Error('Invalid day or workouts'));
+    }
+    
+    return fetchApi(`/schedule/${day}`, { 
+      method: 'PUT', 
+      body: JSON.stringify({ workouts }) 
+    });
+  },
 };
 
 export const performanceApi = {
   getAll: () => fetchApi('/performance'),
-  getById: (id) => fetchApi(`/performance/${id}`),
   getByWorkout: (workoutId) => fetchApi(`/performance/workout/${workoutId}`),
+  getById: (id) => fetchApi(`/performance/${id}`),
   create: (data) => fetchApi('/performance', { method: 'POST', body: JSON.stringify(data) }),
   update: (id, data) => fetchApi(`/performance/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id) => fetchApi(`/performance/${id}`, { method: 'DELETE' }),

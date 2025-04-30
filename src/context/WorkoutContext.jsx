@@ -186,13 +186,23 @@ export function WorkoutProvider({ children }) {
     const loadAllData = async () => {
       setLoading(true);
       try {
-        await Promise.all([
-          fetchWorkouts(),
-          fetchSchedule(),
-          fetchPerformances()
+        const [workoutsData, scheduleData, performancesData] = await Promise.all([
+          workoutApi.getAll(),
+          scheduleApi.get(),
+          performanceApi.getAll()
         ]);
+        
+        setWorkouts(workoutsData);
+        setSchedule(scheduleData);
+        setPerformances(performancesData);
       } catch (err) {
         console.error('Error loading data:', err);
+        if (err.message.startsWith('Unauthorized')) {
+          clearCredentials();
+          navigate('/login', { replace: true });
+        } else {
+          setError('Failed to load data. Please try again.');
+        }
       } finally {
         setLoading(false);
       }

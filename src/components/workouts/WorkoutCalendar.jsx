@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useWorkout } from '../../context/WorkoutContext';
 import { toast } from 'react-hot-toast';
+import { scheduleApi } from '../../services/api';
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function WorkoutCalendar() {
-  const { schedule, updateSchedule, getAllWorkouts, loading } = useWorkout();
+  const { schedule, updateSchedule, workouts, loading } = useWorkout();
   const [selectedDay, setSelectedDay] = useState(null);
   const [scheduledWorkouts, setScheduledWorkouts] = useState({});
   const [availableWorkouts, setAvailableWorkouts] = useState([]);
@@ -13,18 +14,19 @@ export default function WorkoutCalendar() {
   
   // Initialize schedule structure and available workouts
   useEffect(() => {
-    const workouts = getAllWorkouts();
-    setAvailableWorkouts(workouts);
+    if (workouts && workouts.length > 0) {
+      setAvailableWorkouts(workouts);
+    }
     
     // Convert the schedule data for easier access
-    if (schedule && schedule.length > 0) {
+    if (schedule && schedule.days && schedule.days.length > 0) {
       const scheduleMap = {};
-      schedule.forEach(daySchedule => {
-        scheduleMap[daySchedule.day] = daySchedule.workouts;
+      schedule.days.forEach(daySchedule => {
+        scheduleMap[daySchedule.day] = daySchedule.workouts || [];
       });
       setScheduledWorkouts(scheduleMap);
     }
-  }, [schedule, getAllWorkouts]);
+  }, [schedule, workouts]);
   
   const handleDayClick = (day) => {
     setSelectedDay(day);
@@ -45,25 +47,37 @@ export default function WorkoutCalendar() {
         };
       }).filter(w => w); // Remove any null entries
       
-      // Update the schedule
-      const updatedSchedule = [...schedule];
-      const dayIndex = updatedSchedule.findIndex(d => d.day === day);
+      // Check if we have a valid schedule structure
+      if (!schedule || !Array.isArray(schedule.days)) {
+        console.error('Invalid schedule structure:', schedule);
+        toast.error('Invalid schedule structure. Please refresh the page.');
+        return;
+      }
+      
+      // Make a deep copy of the days array
+      const updatedDays = JSON.parse(JSON.stringify(schedule.days || []));
+      const dayIndex = updatedDays.findIndex(d => d.day === day);
       
       if (dayIndex !== -1) {
-        updatedSchedule[dayIndex] = {
-          ...updatedSchedule[dayIndex],
+        // Update the existing day
+        updatedDays[dayIndex].workouts = workoutDetails;
+      } else {
+        // Day doesn't exist, create it
+        updatedDays.push({
+          day: day,
           workouts: workoutDetails
-        };
-        
-        await updateSchedule(updatedSchedule);
-        
-        // Update local state for immediate UI update
-        const newScheduledWorkouts = { ...scheduledWorkouts };
-        newScheduledWorkouts[day] = workoutDetails;
-        setScheduledWorkouts(newScheduledWorkouts);
-        
-        toast.success(`Schedule for ${day} updated successfully`);
+        });
       }
+      
+      // Use the scheduleApi to update a specific day
+      await scheduleApi.updateDay(day, workoutDetails);
+      
+      // Update local state for immediate UI update
+      const newScheduledWorkouts = { ...scheduledWorkouts };
+      newScheduledWorkouts[day] = workoutDetails;
+      setScheduledWorkouts(newScheduledWorkouts);
+      
+      toast.success(`Schedule for ${day} updated successfully`);
     } catch (error) {
       console.error('Error updating schedule:', error);
       toast.error('Failed to update schedule');
@@ -80,11 +94,15 @@ export default function WorkoutCalendar() {
     let workoutTypes = {};
     
     Object.values(scheduledWorkouts).forEach(dayWorkouts => {
-      if (dayWorkouts) {
+      if (dayWorkouts && Array.isArray(dayWorkouts)) {
         totalWorkouts += dayWorkouts.length;
         dayWorkouts.forEach(workout => {
-          totalDuration += workout.duration;
-          workoutTypes[workout.type] = (workoutTypes[workout.type] || 0) + 1;
+          if (workout && workout.duration) {
+            totalDuration += workout.duration;
+          }
+          if (workout && workout.type) {
+            workoutTypes[workout.type] = (workoutTypes[workout.type] || 0) + 1;
+          }
         });
       }
     });
@@ -122,9 +140,9 @@ export default function WorkoutCalendar() {
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {dayWorkouts.map(workout => (
+                  {dayWorkouts.map((workout, idx) => (
                     <div 
-                      key={workout.workoutId}
+                      key={`${workout.workoutId}-${idx}`}
                       className={`text-sm rounded-md p-2
                         ${workout.type === 'strength' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
                           workout.type === 'cardio' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
