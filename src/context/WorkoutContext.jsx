@@ -1,170 +1,206 @@
-// src/context/WorkoutContext.jsx
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-hot-toast';
-import { workoutApi, performanceApi, clearCredentials } from '../services/api';
+import { performanceApi, workoutApi, scheduleApi } from '../services/api';
+import { isAuthenticated } from '../services/api';
 
 // Create the context
 export const WorkoutContext = createContext();
 
-// Custom hook for consuming the context
+// Custom hook for consuming context
 export function useWorkout() {
-  const context = useContext(WorkoutContext);
-  if (!context) {
-    throw new Error('useWorkout must be used within a WorkoutProvider');
-  }
-  return context;
+  return useContext(WorkoutContext);
 }
 
 // Provider component
 export function WorkoutProvider({ children }) {
   const navigate = useNavigate();
-  
-  // State variables
   const [workouts, setWorkouts] = useState([]);
   const [performances, setPerformances] = useState([]);
   const [activeWorkout, setActiveWorkout] = useState(null);
-  const [schedule, setSchedule] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [schedule, setSchedule] = useState({ days: [] });
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  
+
+  // Clear error
+  const clearError = () => setError(null);
+
   // Fetch all workouts
-  const fetchWorkouts = useCallback(async () => {
+  const fetchWorkouts = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       const data = await workoutApi.getAll();
       setWorkouts(data);
-      setError(null);
     } catch (err) {
-      console.error('Error fetching workouts:', err);
-      if (err.message.includes('Unauthorized')) {
-        clearCredentials();
+      if (err.message.startsWith('Unauthorized')) {
+        sessionStorage.removeItem('auth');
         navigate('/login', { replace: true });
       } else {
+        console.error('Error fetching workouts:', err);
         setError('Failed to load workouts. Please try again.');
-        toast.error('Could not load your workouts');
       }
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
-  
-  // Fetch all performance records
-  const fetchPerformances = useCallback(async () => {
+  };
+
+  // Fetch schedule
+  const fetchSchedule = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
+      const data = await scheduleApi.get();
+      setSchedule(data);
+    } catch (err) {
+      if (err.message.startsWith('Unauthorized')) {
+        sessionStorage.removeItem('auth');
+        navigate('/login', { replace: true });
+      } else {
+        console.error('Error fetching schedule:', err);
+        setError('Failed to load schedule. Please try again.');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch all performance records
+  const fetchPerformances = async () => {
+    setLoading(true);
+    try {
       const data = await performanceApi.getAll();
       setPerformances(data);
-      setError(null);
     } catch (err) {
-      console.error('Error fetching performances:', err);
-      if (err.message.includes('Unauthorized')) {
-        clearCredentials();
+      if (err.message.startsWith('Unauthorized')) {
+        sessionStorage.removeItem('auth');
         navigate('/login', { replace: true });
       } else {
+        console.error('Error fetching performances:', err);
         setError('Failed to load workout history. Please try again.');
-        toast.error('Could not load your workout history');
       }
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
-  
+  };
+
   // Add a new workout
-  const addWorkout = useCallback(async (workout) => {
+  const addWorkout = async (workout) => {
+    setLoading(true);
     try {
-      setLoading(true);
       const saved = await workoutApi.create(workout);
       setWorkouts(prev => [...prev, saved]);
-      toast.success('Workout created successfully!');
-      setError(null);
       return saved;
     } catch (err) {
-      console.error('Error adding workout:', err);
-      if (err.message.includes('Unauthorized')) {
-        clearCredentials();
+      if (err.message.startsWith('Unauthorized')) {
+        sessionStorage.removeItem('auth');
         navigate('/login', { replace: true });
       } else {
+        console.error('Error adding workout:', err);
         setError('Failed to create workout. Please try again.');
-        toast.error('Could not create workout');
       }
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
-  
-  // Update an existing workout
-  const updateWorkout = useCallback(async (id, workout) => {
+  };
+
+  // Update a workout
+  const updateWorkout = async (id, workoutData) => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const updated = await workoutApi.update(id, workout);
+      const updated = await workoutApi.update(id, workoutData);
       setWorkouts(prev => prev.map(w => w._id === id ? updated : w));
-      toast.success('Workout updated successfully!');
-      setError(null);
       return updated;
     } catch (err) {
-      console.error('Error updating workout:', err);
-      if (err.message.includes('Unauthorized')) {
-        clearCredentials();
+      if (err.message.startsWith('Unauthorized')) {
+        sessionStorage.removeItem('auth');
         navigate('/login', { replace: true });
       } else {
+        console.error('Error updating workout:', err);
         setError('Failed to update workout. Please try again.');
-        toast.error('Could not update workout');
       }
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
-  
+  };
+
   // Delete a workout
-  const deleteWorkout = useCallback(async (id) => {
+  const deleteWorkout = async (id) => {
+    setLoading(true);
     try {
-      setLoading(true);
       await workoutApi.delete(id);
       setWorkouts(prev => prev.filter(w => w._id !== id));
-      toast.success('Workout deleted successfully!');
-      setError(null);
       return true;
     } catch (err) {
-      console.error('Error deleting workout:', err);
-      if (err.message.includes('Unauthorized')) {
-        clearCredentials();
+      if (err.message.startsWith('Unauthorized')) {
+        sessionStorage.removeItem('auth');
         navigate('/login', { replace: true });
       } else {
+        console.error('Error deleting workout:', err);
         setError('Failed to delete workout. Please try again.');
-        toast.error('Could not delete workout');
       }
       throw err;
     } finally {
       setLoading(false);
     }
-  }, [navigate]);
+  };
 
-  // Clear any error messages
-  const clearError = useCallback(() => {
-    setError(null);
-  }, []);
+  // Update schedule
+  const updateSchedule = async (scheduleData) => {
+    setLoading(true);
+    try {
+      const updated = await scheduleApi.update(scheduleData);
+      setSchedule(updated);
+      return updated;
+    } catch (err) {
+      if (err.message.startsWith('Unauthorized')) {
+        sessionStorage.removeItem('auth');
+        navigate('/login', { replace: true });
+      } else {
+        console.error('Error updating schedule:', err);
+        setError('Failed to update schedule. Please try again.');
+      }
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Finish the active workout
-  const finishWorkout = useCallback(() => {
+  // Get all workouts (used in the WorkoutCalendar component)
+  const getAllWorkouts = () => {
+    return workouts;
+  };
+
+  // Finish the active workout and refresh performances
+  const finishWorkout = () => {
     setActiveWorkout(null);
     fetchPerformances();
-  }, [fetchPerformances]);
+  };
 
-  // Get all available workouts
-  const getAllWorkouts = useCallback(() => {
-    return workouts;
-  }, [workouts]);
-
-  // Load initial data on mount
+  // On mount, load initial data
   useEffect(() => {
-    fetchWorkouts();
-    fetchPerformances();
-  }, [fetchWorkouts, fetchPerformances]);
+    if (!isAuthenticated()) {
+      navigate('/login', { replace: true });
+      return;
+    }
+    
+    const loadAllData = async () => {
+      setLoading(true);
+      try {
+        await Promise.all([
+          fetchWorkouts(),
+          fetchSchedule(),
+          fetchPerformances()
+        ]);
+      } catch (err) {
+        console.error('Error loading data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadAllData();
+  }, [navigate]);
 
-  // Context value
   const value = {
     workouts,
     performances,
@@ -178,6 +214,8 @@ export function WorkoutProvider({ children }) {
     deleteWorkout,
     fetchWorkouts,
     fetchPerformances,
+    fetchSchedule,
+    updateSchedule,
     finishWorkout,
     clearError,
     getAllWorkouts

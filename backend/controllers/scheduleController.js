@@ -33,11 +33,22 @@ const updateSchedule = asyncHandler(async (req, res) => {
   let schedule = await Schedule.findOne({});
 
   if (schedule) {
-    schedule.days = days;
-    const updatedSchedule = await schedule.save();
-    res.json(updatedSchedule);
+    // Ensure days is properly formatted
+    if (Array.isArray(days)) {
+      schedule.days = days;
+      const updatedSchedule = await schedule.save();
+      res.json(updatedSchedule);
+    } else {
+      res.status(400);
+      throw new Error('Days must be an array');
+    }
   } else {
     // Create a new schedule if one doesn't exist
+    if (!Array.isArray(days)) {
+      res.status(400);
+      throw new Error('Days must be an array');
+    }
+
     schedule = new Schedule({
       days
     });
@@ -54,13 +65,24 @@ const updateScheduleDay = asyncHandler(async (req, res) => {
   const { workouts } = req.body;
   const day = req.params.day;
 
+  // Validate day parameter
+  const validDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  if (!validDays.includes(day)) {
+    res.status(400);
+    throw new Error(`Invalid day: ${day}`);
+  }
+
+  // Validate workouts array
+  if (!Array.isArray(workouts)) {
+    res.status(400);
+    throw new Error('Workouts must be an array');
+  }
+
   let schedule = await Schedule.findOne({});
 
   if (!schedule) {
     // Create a default schedule if one doesn't exist
-    const days = [
-      'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
-    ].map(d => ({
+    const days = validDays.map(d => ({
       day: d,
       workouts: d === day ? workouts : []
     }));

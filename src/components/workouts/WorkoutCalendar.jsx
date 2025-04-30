@@ -36,13 +36,14 @@ export default function WorkoutCalendar() {
       // Find the workout objects based on the selected IDs
       const workoutDetails = selectedWorkoutIds.map(id => {
         const workout = availableWorkouts.find(w => w._id === id);
+        if (!workout) return null;
         return {
           workoutId: workout._id,
           name: workout.name,
           type: workout.type,
           duration: workout.duration
         };
-      });
+      }).filter(w => w); // Remove any null entries
       
       // Update the schedule
       const updatedSchedule = [...schedule];
