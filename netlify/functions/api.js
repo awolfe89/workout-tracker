@@ -40,10 +40,186 @@ const scheduleSchema = new mongoose.Schema({
   days: [dayScheduleSchema]
 }, { timestamps: true });
 
-// Register models
+// --- Error middleware (CommonJS) ---
+const notFound = (req, res, next) => {
+  const error = new Error(`Not Found - ${req.originalUrl}`);
+  res.status(404);
+  next(error);
+};
+
+const errorHandler = (err, req, res, next) => {
+  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  
+  res.status(statusCode);
+  res.json({
+    message: err.message,
+    stack: process.env.NODE_ENV === 'production' ? null : err.stack,
+  });
+};
+
+// --- Async handler (CommonJS) ---
+const asyncHandler = fn => (req, res, next) => {
+  Promise.resolve(fn(req, res, next)).catch(next);
+};
+
+// Register models - only create if they don't exist yet
 const Schedule = mongoose.models.Schedule || mongoose.model('Schedule', scheduleSchema);
-const Workout = mongoose.models.Workout || mongoose.model('Workout', require('./models/Workout'));
-const WorkoutPerformance = mongoose.models.WorkoutPerformance || mongoose.model('WorkoutPerformance', require('./models/WorkoutPerformance'));
+
+// We need to define the workout model schemas here rather than importing
+const exerciseSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  sets: {
+    type: Number,
+    required: true,
+    default: 3,
+  },
+  reps: {
+    type: Number,
+    required: true,
+    default: 10,
+  },
+  weight: {
+    type: Number,
+    required: true,
+    default: 0,
+  },
+});
+
+const workoutSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+    },
+    type: {
+      type: String,
+      required: true,
+      enum: ['strength', 'cardio', 'hiit', 'flexibility', 'mixed'],
+      default: 'strength',
+    },
+    duration: {
+      type: Number,
+      required: true,
+      default: 45,
+    },
+    exercises: [exerciseSchema],
+    notes: {
+      type: String,
+      default: '',
+    }
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const Workout = mongoose.models.Workout || mongoose.model('Workout', workoutSchema);
+
+// Performance model schema
+const setPerformanceSchema = new mongoose.Schema({
+  setNumber: {
+    type: Number,
+    required: true,
+  },
+  weight: {
+    type: Number,
+    required: true,
+    default: 0,
+  },
+  reps: {
+    type: Number,
+    required: true,
+    default: 0,
+  },
+  notes: {
+    type: String,
+  }
+});
+
+const exercisePerformanceSchema = new mongoose.Schema({
+  exerciseName: {
+    type: String,
+    required: true,
+  },
+  sets: [setPerformanceSchema],
+  totalWeight: {
+    type: Number,
+    default: 0
+  },
+  totalReps: {
+    type: Number,
+    default: 0
+  }
+});
+
+const workoutPerformanceSchema = new mongoose.Schema(
+  {
+    workoutId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Workout',
+      required: true,
+    },
+    workoutName: {
+      type: String,
+      required: true,
+    },
+    exercises: [exercisePerformanceSchema],
+    totalWeight: {
+      type: Number,
+      default: 0
+    },
+    totalReps: {
+      type: Number,
+      default: 0
+    },
+    duration: {
+      type: Number,
+      required: true,
+      default: 0,
+    },
+    notes: {
+      type: String,
+    }
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Pre-save hook to calculate totals
+workoutPerformanceSchema.pre('save', function(next) {
+  let totalWeight = 0;
+  let totalReps = 0;
+  
+  this.exercises.forEach(exercise => {
+    let exerciseTotalWeight = 0;
+    let exerciseTotalReps = 0;
+    
+    exercise.sets.forEach(set => {
+      exerciseTotalWeight += set.weight * set.reps;
+      exerciseTotalReps += set.reps;
+    });
+    
+    // Update exercise totals
+    exercise.totalWeight = exerciseTotalWeight;
+    exercise.totalReps = exerciseTotalReps;
+    
+    // Add to workout totals
+    totalWeight += exerciseTotalWeight;
+    totalReps += exerciseTotalReps;
+  });
+  
+  // Update workout totals
+  this.totalWeight = totalWeight;
+  this.totalReps = totalReps;
+  
+  next();
+});
+
+const WorkoutPerformance = mongoose.models.WorkoutPerformance || mongoose.model('WorkoutPerformance', workoutPerformanceSchema);
 
 // --- MongoDB Connection helper ---
 async function connectDB() {
@@ -81,8 +257,72 @@ const basicAuth = (req, res, next) => {
 // --- API Routes ---
 router.get('/', (_req, res) => res.json({ message: 'API is running' }));
 
+// Workouts
+router.get('/workouts', basicAuth, asyncHandler(async (_req, res) => {
+  const workouts = await Workout.find({});
+  res.json(workouts);
+}));
+
+router.get('/workouts/:id', basicAuth, asyncHandler(async (req, res) => {
+  const workout = await Workout.findById(req.params.id);
+
+  if (workout) {
+    res.json(workout);
+  } else {
+    res.status(404);
+    throw new Error('Workout not found');
+  }
+}));
+
+router.post('/workouts', basicAuth, asyncHandler(async (req, res) => {
+  const { name, type, duration, exercises, notes } = req.body;
+
+  const workout = new Workout({
+    name,
+    type,
+    duration,
+    exercises,
+    notes,
+  });
+
+  const createdWorkout = await workout.save();
+  res.status(201).json(createdWorkout);
+}));
+
+router.put('/workouts/:id', basicAuth, asyncHandler(async (req, res) => {
+  const { name, type, duration, exercises, notes } = req.body;
+
+  const workout = await Workout.findById(req.params.id);
+
+  if (workout) {
+    workout.name = name || workout.name;
+    workout.type = type || workout.type;
+    workout.duration = duration || workout.duration;
+    workout.exercises = exercises || workout.exercises;
+    workout.notes = notes !== undefined ? notes : workout.notes;
+
+    const updatedWorkout = await workout.save();
+    res.json(updatedWorkout);
+  } else {
+    res.status(404);
+    throw new Error('Workout not found');
+  }
+}));
+
+router.delete('/workouts/:id', basicAuth, asyncHandler(async (req, res) => {
+  const workout = await Workout.findById(req.params.id);
+
+  if (workout) {
+    await workout.deleteOne();
+    res.json({ message: 'Workout removed' });
+  } else {
+    res.status(404);
+    throw new Error('Workout not found');
+  }
+}));
+
 // Schedule
-router.get('/schedule', basicAuth, async (_req, res) => {
+router.get('/schedule', basicAuth, asyncHandler(async (_req, res) => {
   try {
     let schedule = await Schedule.findOne({});
     if (!schedule) {
@@ -99,9 +339,9 @@ router.get('/schedule', basicAuth, async (_req, res) => {
     console.error('Schedule get error:', error);
     res.status(500).json({ message: error.message });
   }
-});
+}));
 
-router.put('/schedule', basicAuth, async (req, res) => {
+router.put('/schedule', basicAuth, asyncHandler(async (req, res) => {
   try {
     const { days } = req.body;
     
@@ -117,16 +357,6 @@ router.put('/schedule', basicAuth, async (req, res) => {
       
       if (!Array.isArray(day.workouts)) {
         return res.status(400).json({ message: `Workouts must be an array for day: ${day.day}` });
-      }
-      
-      // Validate each workout
-      for (const workout of day.workouts) {
-        if (!workout.workoutId || !workout.name || !workout.type || workout.duration === undefined) {
-          return res.status(400).json({ 
-            message: 'Each workout must have workoutId, name, type, and duration',
-            workout
-          });
-        }
       }
     }
     
@@ -144,22 +374,64 @@ router.put('/schedule', basicAuth, async (req, res) => {
     console.error('Schedule update error:', error);
     res.status(500).json({ message: error.message, stack: error.stack });
   }
-});
+}));
+
+// Performance
+router.get('/performance', basicAuth, asyncHandler(async (_req, res) => {
+  const performances = await WorkoutPerformance.find({}).sort({ createdAt: -1 });
+  res.json(performances);
+}));
+
+router.get('/performance/workout/:workoutId', basicAuth, asyncHandler(async (req, res) => {
+  const performances = await WorkoutPerformance.find({ 
+    workoutId: req.params.workoutId 
+  }).sort({ createdAt: -1 });
+  
+  res.json(performances);
+}));
+
+router.get('/performance/:id', basicAuth, asyncHandler(async (req, res) => {
+  const performance = await WorkoutPerformance.findById(req.params.id);
+
+  if (performance) {
+    res.json(performance);
+  } else {
+    res.status(404);
+    throw new Error('Performance record not found');
+  }
+}));
+
+router.post('/performance', basicAuth, asyncHandler(async (req, res) => {
+  const { workoutId, exercises, duration, notes } = req.body;
+
+  // Get the workout name
+  const workout = await Workout.findById(workoutId);
+  if (!workout) {
+    res.status(404);
+    throw new Error('Workout not found');
+  }
+
+  const workoutName = workout.name;
+
+  const performance = new WorkoutPerformance({
+    workoutId,
+    workoutName,
+    exercises,
+    duration,
+    notes
+  });
+
+  const createdPerformance = await performance.save();
+  res.status(201).json(createdPerformance);
+}));
 
 // Auth verify
 router.get('/auth/verify', basicAuth, (_req, res) => res.json({ message: 'Authentication valid' }));
 
 // --- Mount routes then handlers ---
 app.use('/.netlify/functions/api', router);
-app.use((req, res, next) => { res.status(404); next(new Error('Not Found - ' + req.originalUrl)); });
-app.use((err, _req, res, _next) => { 
-  console.error('API error:', err);
-  const code = res.statusCode === 200 ? 500 : res.statusCode; 
-  res.status(code).json({ 
-    message: err.message, 
-    stack: process.env.NODE_ENV === 'production' ? null : err.stack 
-  }); 
-});
+app.use(notFound);
+app.use(errorHandler);
 
 // --- Export Netlify handler ---
 exports.handler = async (event, context) => {
