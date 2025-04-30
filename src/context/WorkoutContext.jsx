@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { performanceApi, workoutApi, scheduleApi } from '../services/api';
-import { isAuthenticated } from '../services/api';
+import { isAuthenticated, clearCredentials } from '../services/api';
+import { toast } from 'react-hot-toast';
 
 // Create the context
 export const WorkoutContext = createContext();
@@ -30,14 +31,10 @@ export function WorkoutProvider({ children }) {
     try {
       const data = await workoutApi.getAll();
       setWorkouts(data);
+      return data;
     } catch (err) {
-      if (err.message.startsWith('Unauthorized')) {
-        sessionStorage.removeItem('auth');
-        navigate('/login', { replace: true });
-      } else {
-        console.error('Error fetching workouts:', err);
-        setError('Failed to load workouts. Please try again.');
-      }
+      handleApiError(err);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -48,15 +45,12 @@ export function WorkoutProvider({ children }) {
     setLoading(true);
     try {
       const data = await scheduleApi.get();
+      console.log('Fetched schedule:', data);
       setSchedule(data);
+      return data;
     } catch (err) {
-      if (err.message.startsWith('Unauthorized')) {
-        sessionStorage.removeItem('auth');
-        navigate('/login', { replace: true });
-      } else {
-        console.error('Error fetching schedule:', err);
-        setError('Failed to load schedule. Please try again.');
-      }
+      handleApiError(err);
+      return { days: [] };
     } finally {
       setLoading(false);
     }
@@ -68,14 +62,10 @@ export function WorkoutProvider({ children }) {
     try {
       const data = await performanceApi.getAll();
       setPerformances(data);
+      return data;
     } catch (err) {
-      if (err.message.startsWith('Unauthorized')) {
-        sessionStorage.removeItem('auth');
-        navigate('/login', { replace: true });
-      } else {
-        console.error('Error fetching performances:', err);
-        setError('Failed to load workout history. Please try again.');
-      }
+      handleApiError(err);
+      return [];
     } finally {
       setLoading(false);
     }
@@ -87,15 +77,10 @@ export function WorkoutProvider({ children }) {
     try {
       const saved = await workoutApi.create(workout);
       setWorkouts(prev => [...prev, saved]);
+      toast.success('Workout created successfully');
       return saved;
     } catch (err) {
-      if (err.message.startsWith('Unauthorized')) {
-        sessionStorage.removeItem('auth');
-        navigate('/login', { replace: true });
-      } else {
-        console.error('Error adding workout:', err);
-        setError('Failed to create workout. Please try again.');
-      }
+      handleApiError(err);
       throw err;
     } finally {
       setLoading(false);
@@ -108,15 +93,10 @@ export function WorkoutProvider({ children }) {
     try {
       const updated = await workoutApi.update(id, workoutData);
       setWorkouts(prev => prev.map(w => w._id === id ? updated : w));
+      toast.success('Workout updated successfully');
       return updated;
     } catch (err) {
-      if (err.message.startsWith('Unauthorized')) {
-        sessionStorage.removeItem('auth');
-        navigate('/login', { replace: true });
-      } else {
-        console.error('Error updating workout:', err);
-        setError('Failed to update workout. Please try again.');
-      }
+      handleApiError(err);
       throw err;
     } finally {
       setLoading(false);
@@ -129,15 +109,10 @@ export function WorkoutProvider({ children }) {
     try {
       await workoutApi.delete(id);
       setWorkouts(prev => prev.filter(w => w._id !== id));
+      toast.success('Workout deleted successfully');
       return true;
     } catch (err) {
-      if (err.message.startsWith('Unauthorized')) {
-        sessionStorage.removeItem('auth');
-        navigate('/login', { replace: true });
-      } else {
-        console.error('Error deleting workout:', err);
-        setError('Failed to delete workout. Please try again.');
-      }
+      handleApiError(err);
       throw err;
     } finally {
       setLoading(false);
@@ -150,18 +125,26 @@ export function WorkoutProvider({ children }) {
     try {
       const updated = await scheduleApi.update(scheduleData);
       setSchedule(updated);
+      toast.success('Schedule updated successfully');
       return updated;
     } catch (err) {
-      if (err.message.startsWith('Unauthorized')) {
-        sessionStorage.removeItem('auth');
-        navigate('/login', { replace: true });
-      } else {
-        console.error('Error updating schedule:', err);
-        setError('Failed to update schedule. Please try again.');
-      }
+      handleApiError(err);
       throw err;
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handle API errors
+  const handleApiError = (err) => {
+    console.error('API error:', err);
+    
+    if (err.message && err.message.startsWith('Unauthorized')) {
+      clearCredentials();
+      navigate('/login', { replace: true });
+    } else {
+      setError(`Error: ${err.message || 'Unknown error'}`);
+      toast.error(err.message || 'An error occurred');
     }
   };
 
@@ -176,7 +159,7 @@ export function WorkoutProvider({ children }) {
     fetchPerformances();
   };
 
-  // On mount, load initial data
+  // Load initial data on mount
   useEffect(() => {
     if (!isAuthenticated()) {
       navigate('/login', { replace: true });
@@ -186,23 +169,13 @@ export function WorkoutProvider({ children }) {
     const loadAllData = async () => {
       setLoading(true);
       try {
-        const [workoutsData, scheduleData, performancesData] = await Promise.all([
-          workoutApi.getAll(),
-          scheduleApi.get(),
-          performanceApi.getAll()
+        await Promise.all([
+          fetchWorkouts(),
+          fetchSchedule(),
+          fetchPerformances()
         ]);
-        
-        setWorkouts(workoutsData);
-        setSchedule(scheduleData);
-        setPerformances(performancesData);
       } catch (err) {
         console.error('Error loading data:', err);
-        if (err.message.startsWith('Unauthorized')) {
-          clearCredentials();
-          navigate('/login', { replace: true });
-        } else {
-          setError('Failed to load data. Please try again.');
-        }
       } finally {
         setLoading(false);
       }

@@ -7,44 +7,43 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 
-// --- Inline Mongoose schema definitions ---
-const workoutSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  type: { type: String, required: true, enum: ['strength','cardio','hiit','flexibility','mixed'], default: 'strength' },
-  duration: { type: Number, required: true, default: 45 },
-  exercises: [
-    {
-      name: { type: String, required: true },
-      sets: { type: Number, required: true, default: 3 },
-      reps: { type: Number, required: true, default: 10 },
-      weight: { type: Number, required: true, default: 0 },
-      rest: { type: Number, default: 30 },
-      notes: { type: String, default: '' }
-    }
-  ],
-  notes: { type: String, default: '' }
-}, { timestamps: true });
+// --- Define MongoDB schema directly ---
+const scheduledWorkoutSchema = new mongoose.Schema({
+  workoutId: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: true
+  },
+  name: {
+    type: String,
+    required: true
+  },
+  type: {
+    type: String,
+    required: true
+  },
+  duration: {
+    type: Number,
+    required: true
+  }
+});
+
+const dayScheduleSchema = new mongoose.Schema({
+  day: {
+    type: String,
+    required: true,
+    enum: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  },
+  workouts: [scheduledWorkoutSchema]
+});
 
 const scheduleSchema = new mongoose.Schema({
-  days: [
-    { day: { type: String, required: true }, workouts: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Workout' }] }
-  ]
+  days: [dayScheduleSchema]
 }, { timestamps: true });
 
-const performanceSchema = new mongoose.Schema({
-  workoutId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'Workout' },
-  workoutName: { type: String, required: true },
-  exercises: [
-    { name: { type: String, required: true }, sets: { type: Number, required: true }, reps: { type: Number, required: true }, weight: { type: Number, required: true }, notes: { type: String } }
-  ],
-  duration: { type: Number, required: true },
-  notes: { type: String, default: '' }
-}, { timestamps: true });
-
-// Register or reuse models
-const Workout = mongoose.models.Workout || mongoose.model('Workout', workoutSchema);
+// Register models
 const Schedule = mongoose.models.Schedule || mongoose.model('Schedule', scheduleSchema);
-const WorkoutPerformance = mongoose.models.WorkoutPerformance || mongoose.model('WorkoutPerformance', performanceSchema);
+const Workout = mongoose.models.Workout || mongoose.model('Workout', require('./models/Workout'));
+const WorkoutPerformance = mongoose.models.WorkoutPerformance || mongoose.model('WorkoutPerformance', require('./models/WorkoutPerformance'));
 
 // --- MongoDB Connection helper ---
 async function connectDB() {
@@ -82,44 +81,69 @@ const basicAuth = (req, res, next) => {
 // --- API Routes ---
 router.get('/', (_req, res) => res.json({ message: 'API is running' }));
 
-// Workouts
-router.get('/workouts', basicAuth, async (_req, res) => res.json(await Workout.find({})));  
-router.get('/workouts/:id', basicAuth, async (req, res) => {
-  const w = await Workout.findById(req.params.id);
-  return w ? res.json(w) : res.status(404).json({ message: 'Workout not found' });
-});
-router.post('/workouts', basicAuth, async (req, res) => res.status(201).json(await new Workout(req.body).save()));
-router.put('/workouts/:id', basicAuth, async (req, res) => {
-  const w = await Workout.findByIdAndUpdate(req.params.id, req.body, { new: true });
-  return w ? res.json(w) : res.status(404).json({ message: 'Workout not found' });
-});
-router.delete('/workouts/:id', basicAuth, async (req, res) => {
-  const w = await Workout.findById(req.params.id);
-  if (!w) return res.status(404).json({ message: 'Workout not found' });
-  await w.deleteOne();
-  return res.json({ message: 'Workout removed' });
-});
-
 // Schedule
 router.get('/schedule', basicAuth, async (_req, res) => {
-  let s = await Schedule.findOne({});
-  if (!s) s = await Schedule.create({ days: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map(d => ({ day: d, workouts: [] })) });
-  res.json(s);
-});
-router.put('/schedule', basicAuth, async (req, res) => {
-  const { days } = req.body;
-  const s = await Schedule.findOneAndUpdate({}, { days }, { new: true, upsert: true });
-  res.json(s);
+  try {
+    let schedule = await Schedule.findOne({});
+    if (!schedule) {
+      // Create default schedule if none exists
+      schedule = await Schedule.create({
+        days: ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map(day => ({ 
+          day, 
+          workouts: [] 
+        }))
+      });
+    }
+    res.json(schedule);
+  } catch (error) {
+    console.error('Schedule get error:', error);
+    res.status(500).json({ message: error.message });
+  }
 });
 
-// Performance
-router.get('/performance', basicAuth, async (_req, res) => res.json(await WorkoutPerformance.find({}).sort({ createdAt: -1 })));
-router.post('/performance', basicAuth, async (req, res) => {
-  const { workoutId, exercises, duration, notes } = req.body;
-  const wk = await Workout.findById(workoutId);
-  if (!wk) return res.status(404).json({ message: 'Workout not found' });
-  const p = await new WorkoutPerformance({ workoutId, workoutName: wk.name, exercises, duration, notes }).save();
-  res.status(201).json(p);
+router.put('/schedule', basicAuth, async (req, res) => {
+  try {
+    const { days } = req.body;
+    
+    if (!days || !Array.isArray(days)) {
+      return res.status(400).json({ message: 'Invalid request: days must be an array' });
+    }
+    
+    // Validate each day has correct structure
+    for (const day of days) {
+      if (!day.day || !['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].includes(day.day)) {
+        return res.status(400).json({ message: `Invalid day: ${day.day}` });
+      }
+      
+      if (!Array.isArray(day.workouts)) {
+        return res.status(400).json({ message: `Workouts must be an array for day: ${day.day}` });
+      }
+      
+      // Validate each workout
+      for (const workout of day.workouts) {
+        if (!workout.workoutId || !workout.name || !workout.type || workout.duration === undefined) {
+          return res.status(400).json({ 
+            message: 'Each workout must have workoutId, name, type, and duration',
+            workout
+          });
+        }
+      }
+    }
+    
+    // Find existing schedule or create new one
+    let schedule = await Schedule.findOne({});
+    if (!schedule) {
+      schedule = new Schedule();
+    }
+    
+    // Update the schedule
+    schedule.days = days;
+    const updatedSchedule = await schedule.save();
+    res.json(updatedSchedule);
+  } catch (error) {
+    console.error('Schedule update error:', error);
+    res.status(500).json({ message: error.message, stack: error.stack });
+  }
 });
 
 // Auth verify
@@ -128,7 +152,14 @@ router.get('/auth/verify', basicAuth, (_req, res) => res.json({ message: 'Authen
 // --- Mount routes then handlers ---
 app.use('/.netlify/functions/api', router);
 app.use((req, res, next) => { res.status(404); next(new Error('Not Found - ' + req.originalUrl)); });
-app.use((err, _req, res, _next) => { const code = res.statusCode === 200 ? 500 : res.statusCode; res.status(code).json({ message: err.message, stack: process.env.NODE_ENV === 'production' ? null : err.stack }); });
+app.use((err, _req, res, _next) => { 
+  console.error('API error:', err);
+  const code = res.statusCode === 200 ? 500 : res.statusCode; 
+  res.status(code).json({ 
+    message: err.message, 
+    stack: process.env.NODE_ENV === 'production' ? null : err.stack 
+  }); 
+});
 
 // --- Export Netlify handler ---
 exports.handler = async (event, context) => {
@@ -144,7 +175,7 @@ exports.handler = async (event, context) => {
     console.error('API error:', err);
     return {
       statusCode: err.statusCode || 500,
-      body: JSON.stringify({ message: err.message })
+      body: JSON.stringify({ message: err.message, stack: err.stack })
     };
   }
 };

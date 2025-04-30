@@ -6,11 +6,12 @@ import { scheduleApi } from '../../services/api';
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export default function WorkoutCalendar() {
-  const { schedule, updateSchedule, workouts, loading } = useWorkout();
+  const { schedule, workouts, loading, fetchSchedule } = useWorkout();
   const [selectedDay, setSelectedDay] = useState(null);
   const [scheduledWorkouts, setScheduledWorkouts] = useState({});
   const [availableWorkouts, setAvailableWorkouts] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [localUpdating, setLocalUpdating] = useState(false);
   
   // Initialize schedule structure and available workouts
   useEffect(() => {
@@ -19,10 +20,12 @@ export default function WorkoutCalendar() {
     }
     
     // Convert the schedule data for easier access
-    if (schedule && schedule.days && schedule.days.length > 0) {
+    if (schedule && schedule.days && Array.isArray(schedule.days)) {
       const scheduleMap = {};
       schedule.days.forEach(daySchedule => {
-        scheduleMap[daySchedule.day] = daySchedule.workouts || [];
+        if (daySchedule && daySchedule.day && Array.isArray(daySchedule.workouts)) {
+          scheduleMap[daySchedule.day] = daySchedule.workouts || [];
+        }
       });
       setScheduledWorkouts(scheduleMap);
     }
@@ -35,6 +38,8 @@ export default function WorkoutCalendar() {
   
   const handleSaveSchedule = async (day, selectedWorkoutIds) => {
     try {
+      setLocalUpdating(true);
+      
       // Find the workout objects based on the selected IDs
       const workoutDetails = selectedWorkoutIds.map(id => {
         const workout = availableWorkouts.find(w => w._id === id);
@@ -47,51 +52,70 @@ export default function WorkoutCalendar() {
         };
       }).filter(w => w); // Remove any null entries
       
-      // Check if we have a valid schedule structure
-      if (!schedule || !Array.isArray(schedule.days)) {
-        console.error('Invalid schedule structure:', schedule);
-        toast.error('Invalid schedule structure. Please refresh the page.');
-        return;
-      }
-      
-      // Make a deep copy of the days array
-      const updatedDays = JSON.parse(JSON.stringify(schedule.days || []));
-      const dayIndex = updatedDays.findIndex(d => d.day === day);
-      
-      if (dayIndex !== -1) {
-        // Update the existing day
-        updatedDays[dayIndex].workouts = workoutDetails;
-      } else {
-        // Day doesn't exist, create it
-        updatedDays.push({
-          day: day,
-          workouts: workoutDetails
-        });
-      }
-      
-      // Just update the local state for now for a better user experience
+      // Update local state first for immediate UI feedback
       const newScheduledWorkouts = { ...scheduledWorkouts };
       newScheduledWorkouts[day] = workoutDetails;
       setScheduledWorkouts(newScheduledWorkouts);
       
-      // Attempt to save to the backend
-      try {
-        console.log('Saving schedule with days:', updatedDays);
-        await scheduleApi.update({ days: updatedDays });
-        toast.success(`Schedule for ${day} updated successfully`);
-      } catch (saveError) {
-        console.error('Error saving to backend:', saveError);
-        // We won't show an error toast since the UI is already updated
-        // and the user can try saving again later
-        toast.warning('Changes saved locally but not synced to server. Try again later.');
+      // Prepare the complete schedule data
+      if (!schedule || !schedule.days || !Array.isArray(schedule.days)) {
+        console.error('Invalid schedule structure, creating new one');
+        
+        // Create a new schedule structure
+        const newDays = DAYS_OF_WEEK.map(d => ({
+          day: d,
+          workouts: d === day ? workoutDetails : []
+        }));
+        
+        try {
+          await scheduleApi.update({ days: newDays });
+          toast.success(`Schedule for ${day} updated successfully`);
+          // Refresh the schedule data
+          fetchSchedule();
+        } catch (error) {
+          console.error('Error saving new schedule:', error);
+          toast.warning('Changes saved locally but may not persist. Please try again later.');
+        }
+      } else {
+        // Clone the existing days array
+        const updatedDays = [...schedule.days];
+        
+        // Find the index of the day to update
+        const dayIndex = updatedDays.findIndex(d => d.day === day);
+        
+        if (dayIndex !== -1) {
+          // Update the existing day
+          updatedDays[dayIndex] = {
+            ...updatedDays[dayIndex],
+            workouts: workoutDetails
+          };
+        } else {
+          // Add a new day entry
+          updatedDays.push({
+            day,
+            workouts: workoutDetails
+          });
+        }
+        
+        try {
+          // Send the update to the server
+          await scheduleApi.update({ days: updatedDays });
+          toast.success(`Schedule for ${day} updated successfully`);
+          // Refresh the schedule data
+          fetchSchedule();
+        } catch (error) {
+          console.error('Error saving to backend:', error);
+          toast.warning('Changes saved locally but may not persist. Please try again later.');
+        }
       }
     } catch (error) {
       console.error('Error updating schedule:', error);
       toast.error('Failed to update schedule');
+    } finally {
+      setLocalUpdating(false);
+      setIsModalOpen(false);
+      setSelectedDay(null);
     }
-    
-    setIsModalOpen(false);
-    setSelectedDay(null);
   };
   
   // Calculate weekly stats
@@ -119,7 +143,7 @@ export default function WorkoutCalendar() {
   
   const weeklyStats = calculateWeeklyStats();
 
-  if (loading) {
+  if (loading || localUpdating) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
