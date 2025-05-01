@@ -286,14 +286,16 @@ export default function ActiveWorkout({ onComplete }) {
                             <input
                               type="number"
                               id={`weight-${exerciseId}-${setIndex}`}
-                              value={weight}
+                              value={weight > 0 ? weight : ''}
                               onChange={(e) => isActive && handleWeightChange(exerciseId, setIndex, e.target.value)}
+                              placeholder="0"
                               disabled={!isActive}
                               min="0"
                               step="2.5"
                               className="w-20 px-2 py-1 text-sm border border-gray-300 rounded-md
                                 disabled:opacity-50 disabled:cursor-not-allowed
-                                dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                                dark:bg-gray-600 dark:border-gray-500 dark:text-white
+                                placeholder:text-gray-400 dark:placeholder:text-gray-500"
                             />
                             <span className="ml-1 text-sm">lbs</span>
                           </div>
