@@ -11,6 +11,28 @@ export default function ActiveWorkout({ onComplete }) {
   const [isActive, setIsActive] = useState(false);
   const [restTime, setRestTime] = useState(30);
   const [showRest, setShowRest] = useState(false);
+  
+  // Track completed sets for each exercise
+  const [exerciseProgress, setExerciseProgress] = useState({});
+  // Track completed exercises
+  const [completedExercises, setCompletedExercises] = useState({});
+
+  // Initialize exercise progress when activeWorkout changes
+  useEffect(() => {
+    if (activeWorkout && activeWorkout.exercises) {
+      const initialProgress = {};
+      const initialCompleted = {};
+      
+      activeWorkout.exercises.forEach((exercise, index) => {
+        const exerciseId = `exercise-${index}`;
+        initialProgress[exerciseId] = Array(exercise.sets).fill(false);
+        initialCompleted[exerciseId] = false;
+      });
+      
+      setExerciseProgress(initialProgress);
+      setCompletedExercises(initialCompleted);
+    }
+  }, [activeWorkout]);
 
   // Workout duration timer
   useEffect(() => {
@@ -55,14 +77,43 @@ export default function ActiveWorkout({ onComplete }) {
     }
 
     setIsActive(false);
+    
+    // Gather completed sets data for performance tracking
+    const completedExercisesData = activeWorkout.exercises.map((exercise, index) => {
+      const exerciseId = `exercise-${index}`;
+      const completedSets = exerciseProgress[exerciseId] || Array(exercise.sets).fill(false);
+      const isExerciseCompleted = completedExercises[exerciseId] || false;
+      
+      // Create sets data for each set (completed or not)
+      const sets = completedSets.map((completed, setIndex) => {
+        return {
+          setNumber: setIndex + 1,
+          weight: exercise.weight || 0,
+          reps: exercise.reps || 0,
+          completed: completed // Track whether this set was completed
+        };
+      });
+      
+      return {
+        exerciseName: exercise.name,
+        sets,
+        totalSets: exercise.sets,
+        completedSets: completedSets.filter(Boolean).length,
+        completed: isExerciseCompleted
+      };
+    });
+    
     try {
       await performanceApi.create({ 
         workoutId: activeWorkout._id, 
         duration: timer,
-        exercises: activeWorkout.exercises.map(ex => ({
-          exerciseName: ex.name,
-          sets: [{ setNumber: 1, weight: ex.weight || 0, reps: ex.reps || 0 }]
-        }))
+        exercises: completedExercisesData,
+        // Add completion metadata
+        completionStats: {
+          totalExercises: activeWorkout.exercises.length,
+          completedExercises: Object.values(completedExercises).filter(Boolean).length,
+          allExercisesCompleted: Object.values(completedExercises).every(Boolean)
+        }
       });
       toast.success('Workout saved!');
       finishWorkout();
@@ -76,6 +127,31 @@ export default function ActiveWorkout({ onComplete }) {
   const handleRest = (seconds) => {
     setRestTime(seconds);
     setShowRest(true);
+  };
+  
+  const toggleSetCompletion = (exerciseId, setIndex) => {
+    setExerciseProgress(prev => {
+      const updatedSets = [...prev[exerciseId]];
+      updatedSets[setIndex] = !updatedSets[setIndex];
+      
+      return {
+        ...prev,
+        [exerciseId]: updatedSets
+      };
+    });
+  };
+  
+  const markExerciseComplete = (exerciseId) => {
+    setCompletedExercises(prev => ({
+      ...prev,
+      [exerciseId]: !prev[exerciseId]
+    }));
+  };
+  
+  // Check if all sets are completed
+  const areAllSetsCompleted = (exerciseId) => {
+    return exerciseProgress[exerciseId] && 
+           exerciseProgress[exerciseId].every(set => set === true);
   };
 
   if (!activeWorkout) {
@@ -113,23 +189,86 @@ export default function ActiveWorkout({ onComplete }) {
         )}
       </header>
 
-      <div className="text-lg">Duration: <strong>{formatTime(timer)}</strong></div>
+      <div className="text-lg bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm">
+        Duration: <strong>{formatTime(timer)}</strong>
+      </div>
 
       <div className="grid gap-4">
-        {activeWorkout.exercises.map((ex, index) => (
-          <div key={index} className="card p-4">
-            <h3 className="font-semibold">{ex.name}</h3>
-            <p>Sets: {ex.sets} × Reps: {ex.reps}</p>
-            <p>Weight: {ex.weight} lbs</p>
-            <button
-              type="button"
-              onClick={() => handleRest(ex.rest || 30)}
-              className="btn btn-secondary mt-2"
+        {activeWorkout.exercises.map((ex, index) => {
+          const exerciseId = `exercise-${index}`;
+          const isCompleted = completedExercises[exerciseId];
+          
+          return (
+            <div 
+              key={index} 
+              className={`card p-4 transition-all ${isCompleted ? 'opacity-60' : ''}`}
             >
-              Rest {ex.rest || 30}s
-            </button>
-          </div>
-        ))}
+              <div className="flex justify-between items-start mb-3">
+                <h3 className="font-semibold text-lg">{ex.name}</h3>
+                <button
+                  type="button"
+                  onClick={() => markExerciseComplete(exerciseId)}
+                  className={`text-sm px-3 py-1 rounded-full ${
+                    isCompleted 
+                      ? 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400' 
+                      : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                  }`}
+                >
+                  {isCompleted ? 'Completed' : 'Mark Complete'}
+                </button>
+              </div>
+              
+              <div className="mb-3">
+                <p className="text-gray-600 dark:text-gray-400">
+                  {ex.sets} sets × {ex.reps} reps • {ex.weight} lbs
+                </p>
+              </div>
+              
+              <div className="mb-4">
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
+                  Sets Completed:
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {exerciseProgress[exerciseId] && 
+                    exerciseProgress[exerciseId].map((completed, setIndex) => (
+                    <label 
+                      key={setIndex}
+                      className="flex items-center cursor-pointer bg-white dark:bg-gray-700 p-2 rounded-md border border-gray-200 dark:border-gray-600"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={completed}
+                        onChange={() => toggleSetCompletion(exerciseId, setIndex)}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      />
+                      <span className="ml-2 text-sm">Set {setIndex + 1}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleRest(ex.rest || 30)}
+                  className="btn btn-secondary text-sm"
+                >
+                  Rest {ex.rest || 30}s
+                </button>
+                
+                {!isCompleted && areAllSetsCompleted(exerciseId) && (
+                  <button
+                    type="button"
+                    onClick={() => markExerciseComplete(exerciseId)}
+                    className="btn btn-primary text-sm"
+                  >
+                    Complete Exercise
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {showRest && (
