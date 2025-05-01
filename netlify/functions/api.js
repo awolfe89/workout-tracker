@@ -519,3 +519,95 @@ exports.handler = async (event, context) => {
     };
   }
 };
+
+const dateWorkoutSchema = new mongoose.Schema({
+  date: {
+    type: String,  // Format: YYYY-MM-DD
+    required: true,
+    index: true
+  },
+  workouts: [{
+    workoutId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true
+    },
+    name: {
+      type: String,
+      required: true
+    },
+    type: {
+      type: String,
+      required: true
+    },
+    duration: {
+      type: Number,
+      required: true
+    }
+  }]
+}, { timestamps: true });
+
+// Register model
+const DateWorkout = mongoose.models.DateWorkout || mongoose.model('DateWorkout', dateWorkoutSchema);
+
+
+// Date-specific workout routes - IMPORTANT: ORDER MATTERS HERE
+// The 'range' route must be defined BEFORE the '/:date' route
+router.get('/dateworkouts/range', basicAuth, asyncHandler(async (req, res) => {
+  const { startDate, endDate } = req.query;
+  
+  if (!startDate || !endDate) {
+    res.status(400);
+    throw new Error('Start date and end date are required');
+  }
+  
+  const dateWorkouts = await DateWorkout.find({
+    date: { $gte: startDate, $lte: endDate }
+  });
+  
+  // Transform to a map for easier client-side processing
+  const workoutsByDate = {};
+  dateWorkouts.forEach(dw => {
+    workoutsByDate[dw.date] = dw.workouts;
+  });
+  
+  res.json(workoutsByDate);
+}));
+
+router.get('/dateworkouts/:date', basicAuth, asyncHandler(async (req, res) => {
+  const { date } = req.params;
+  
+  const dateWorkout = await DateWorkout.findOne({ date });
+  
+  if (dateWorkout) {
+    res.json(dateWorkout.workouts);
+  } else {
+    res.json([]);
+  }
+}));
+
+router.put('/dateworkouts/:date', basicAuth, asyncHandler(async (req, res) => {
+  const { date } = req.params;
+  const { workouts } = req.body;
+  
+  if (!Array.isArray(workouts)) {
+    res.status(400);
+    throw new Error('Workouts must be an array');
+  }
+  
+  let dateWorkout = await DateWorkout.findOne({ date });
+  
+  if (dateWorkout) {
+    dateWorkout.workouts = workouts;
+    const updatedDateWorkout = await dateWorkout.save();
+    res.json(updatedDateWorkout.workouts);
+  } else {
+    // Create new date workout entry
+    dateWorkout = new DateWorkout({
+      date,
+      workouts
+    });
+    
+    const newDateWorkout = await dateWorkout.save();
+    res.status(201).json(newDateWorkout.workouts);
+  }
+}));
