@@ -16,21 +16,32 @@ export default function ActiveWorkout({ onComplete }) {
   const [exerciseProgress, setExerciseProgress] = useState({});
   // Track completed exercises
   const [completedExercises, setCompletedExercises] = useState({});
+  // Track weights for each set
+  const [setWeights, setSetWeights] = useState({});
 
   // Initialize exercise progress when activeWorkout changes
   useEffect(() => {
     if (activeWorkout && activeWorkout.exercises) {
       const initialProgress = {};
       const initialCompleted = {};
+      const initialWeights = {};
       
-      activeWorkout.exercises.forEach((exercise, index) => {
-        const exerciseId = `exercise-${index}`;
+      activeWorkout.exercises.forEach((exercise, exIndex) => {
+        const exerciseId = `exercise-${exIndex}`;
         initialProgress[exerciseId] = Array(exercise.sets).fill(false);
         initialCompleted[exerciseId] = false;
+        
+        // Initialize weights for each set (default to 0 or the exercise's default weight if available)
+        const defaultWeight = exercise.weight || 0;
+        for (let setIndex = 0; setIndex < exercise.sets; setIndex++) {
+          const weightKey = `${exerciseId}-set-${setIndex}`;
+          initialWeights[weightKey] = defaultWeight;
+        }
       });
       
       setExerciseProgress(initialProgress);
       setCompletedExercises(initialCompleted);
+      setSetWeights(initialWeights);
     }
   }, [activeWorkout]);
 
@@ -78,17 +89,20 @@ export default function ActiveWorkout({ onComplete }) {
 
     setIsActive(false);
     
-    // Gather completed sets data for performance tracking
-    const completedExercisesData = activeWorkout.exercises.map((exercise, index) => {
-      const exerciseId = `exercise-${index}`;
+    // Gather completed sets data with weights for performance tracking
+    const completedExercisesData = activeWorkout.exercises.map((exercise, exIndex) => {
+      const exerciseId = `exercise-${exIndex}`;
       const completedSets = exerciseProgress[exerciseId] || Array(exercise.sets).fill(false);
       const isExerciseCompleted = completedExercises[exerciseId] || false;
       
-      // Create sets data for each set (completed or not)
+      // Create sets data for each set (completed or not) with weights
       const sets = completedSets.map((completed, setIndex) => {
+        const weightKey = `${exerciseId}-set-${setIndex}`;
+        const weight = setWeights[weightKey] || 0;
+        
         return {
           setNumber: setIndex + 1,
-          weight: exercise.weight || 0,
+          weight: weight,
           reps: exercise.reps || 0,
           completed: completed // Track whether this set was completed
         };
@@ -139,6 +153,16 @@ export default function ActiveWorkout({ onComplete }) {
         [exerciseId]: updatedSets
       };
     });
+  };
+  
+  const handleWeightChange = (exerciseId, setIndex, value) => {
+    const weightKey = `${exerciseId}-set-${setIndex}`;
+    const weight = parseFloat(value) || 0;
+    
+    setSetWeights(prev => ({
+      ...prev,
+      [weightKey]: weight
+    }));
   };
   
   const markExerciseComplete = (exerciseId) => {
@@ -194,13 +218,13 @@ export default function ActiveWorkout({ onComplete }) {
       </div>
 
       <div className="grid gap-4">
-        {activeWorkout.exercises.map((ex, index) => {
-          const exerciseId = `exercise-${index}`;
+        {activeWorkout.exercises.map((ex, exIndex) => {
+          const exerciseId = `exercise-${exIndex}`;
           const isCompleted = completedExercises[exerciseId];
           
           return (
             <div 
-              key={index} 
+              key={exIndex} 
               className={`card p-4 transition-all ${isCompleted ? 'opacity-60' : ''}`}
             >
               <div className="flex justify-between items-start mb-3">
@@ -223,37 +247,63 @@ export default function ActiveWorkout({ onComplete }) {
               
               <div className="mb-3">
                 <p className="text-gray-600 dark:text-gray-400">
-                  {ex.sets} sets × {ex.reps} reps • {ex.weight} lbs
+                  {ex.sets} sets × {ex.reps} reps
                 </p>
               </div>
               
               <div className="mb-4">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">
-                  Sets Completed:
+                  Sets:
                 </label>
-                <div className="flex flex-wrap gap-2">
+                <div className="grid gap-2">
                   {exerciseProgress[exerciseId] && 
-                    exerciseProgress[exerciseId].map((completed, setIndex) => (
-                    <label 
-                      key={setIndex}
-                      className={`flex items-center ${isActive ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'} 
-                        bg-white dark:bg-gray-700 p-2 rounded-md border border-gray-200 dark:border-gray-600`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={completed}
-                        onChange={() => isActive && toggleSetCompletion(exerciseId, setIndex)}
-                        disabled={!isActive}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
-                          disabled:opacity-50 disabled:cursor-not-allowed"
-                      />
-                      <span className="ml-2 text-sm">Set {setIndex + 1}</span>
-                    </label>
-                  ))}
+                    exerciseProgress[exerciseId].map((completed, setIndex) => {
+                      const weightKey = `${exerciseId}-set-${setIndex}`;
+                      const weight = setWeights[weightKey] || 0;
+                      
+                      return (
+                        <div 
+                          key={setIndex}
+                          className={`flex items-center ${isActive ? '' : 'opacity-60'} 
+                            bg-white dark:bg-gray-700 p-3 rounded-md border border-gray-200 dark:border-gray-600`}
+                        >
+                          <div className="flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={completed}
+                              onChange={() => isActive && toggleSetCompletion(exerciseId, setIndex)}
+                              disabled={!isActive}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
+                                disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                            <span className="ml-2 text-sm font-medium">Set {setIndex + 1}</span>
+                          </div>
+                          
+                          <div className="ml-auto flex items-center">
+                            <label htmlFor={`weight-${exerciseId}-${setIndex}`} className="mr-2 text-sm">
+                              Weight:
+                            </label>
+                            <input
+                              type="number"
+                              id={`weight-${exerciseId}-${setIndex}`}
+                              value={weight}
+                              onChange={(e) => isActive && handleWeightChange(exerciseId, setIndex, e.target.value)}
+                              disabled={!isActive}
+                              min="0"
+                              step="2.5"
+                              className="w-20 px-2 py-1 text-sm border border-gray-300 rounded-md
+                                disabled:opacity-50 disabled:cursor-not-allowed
+                                dark:bg-gray-600 dark:border-gray-500 dark:text-white"
+                            />
+                            <span className="ml-1 text-sm">lbs</span>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
                 {!isActive && (
                   <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
-                    Start the workout to track sets
+                    Start the workout to track sets and weights
                   </p>
                 )}
               </div>

@@ -10,7 +10,7 @@ export default function WorkoutForm({ initialData = null, onComplete }) {
     name: '',
     type: 'strength',
     duration: 45,
-    exercises: [{ name: '', sets: 3, reps: 10, weight: 0 }],
+    exercises: [{ name: '', sets: 3, reps: 10 }], // Removed weight field
     notes: '',
     ...initialData,
   });
@@ -59,7 +59,7 @@ export default function WorkoutForm({ initialData = null, onComplete }) {
       ...prev,
       exercises: [
         ...prev.exercises,
-        { name: '', sets: 3, reps: 10, weight: 0 }
+        { name: '', sets: 3, reps: 10 } // Removed weight field from new exercises
       ]
     }));
   };
@@ -79,12 +79,21 @@ export default function WorkoutForm({ initialData = null, onComplete }) {
       return;
     }
     
+    // Add default weight of 0 to each exercise for backward compatibility
+    const formattedData = {
+      ...formData,
+      exercises: formData.exercises.map(exercise => ({
+        ...exercise,
+        weight: 0 // Add default weight for API compatibility
+      }))
+    };
+    
     try {
       if (isEditMode) {
-        await updateWorkout(initialData._id, formData);
+        await updateWorkout(initialData._id, formattedData);
         toast.success('Workout updated successfully');
       } else {
-        await addWorkout(formData);
+        await addWorkout(formattedData);
         toast.success('Workout created successfully');
       }
       
@@ -189,8 +198,8 @@ export default function WorkoutForm({ initialData = null, onComplete }) {
                 )}
               </div>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="sm:col-span-3">
                   <label htmlFor={`exercise-${index}-name`} className="label">
                     Exercise Name
                   </label>
@@ -240,22 +249,11 @@ export default function WorkoutForm({ initialData = null, onComplete }) {
                   />
                 </div>
                 
-                <div className="col-span-2">
-                <label htmlFor={`exercise-${index}-weight`} className="label">
-                   Weight (lbs)
-                </label>
-                  <input
-                    type="number"
-                    id={`exercise-${index}-weight`}
-                    value={exercise.weight}
-                    onChange={(e) => handleExerciseChange(index, 'weight', e.target.value)}
-                    min="0"
-                    max="1000"
-                    step="0.5"
-                    className="input"
-                    disabled={loading}
-                  />
-                </div>
+                {/* Weight field removed - will be handled per set during the actual workout */}
+              </div>
+              
+              <div className="mt-3 text-sm text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                <p>Weight for each set will be recorded during the workout</p>
               </div>
             </div>
           ))}
