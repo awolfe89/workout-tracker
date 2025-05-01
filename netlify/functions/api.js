@@ -424,6 +424,16 @@ router.post('/performance', basicAuth, asyncHandler(async (req, res) => {
   res.status(201).json(createdPerformance);
 }));
 
+const dateWorkoutApi = {
+  getByDate: (date) => fetchApi(`/dateworkouts/${date}`),
+  getByDateRange: (startDate, endDate) => 
+    fetchApi(`/dateworkouts/range?startDate=${startDate}&endDate=${endDate}`),
+  updateByDate: (date, workouts) => 
+    fetchApi(`/dateworkouts/${date}`, { 
+      method: 'PUT', 
+      body: JSON.stringify({ workouts }) 
+    })
+};
 // Performance stats endpoints
 router.get('/performance/stats/exercise/:exerciseName', basicAuth, asyncHandler(async (req, res) => {
   const { exerciseName } = req.params;

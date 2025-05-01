@@ -84,6 +84,16 @@ export const workoutApi = {
   update: (id, data) => fetchApi(`/workouts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   delete: (id) => fetchApi(`/workouts/${id}`, { method: 'DELETE' }),
 };
+export const dateWorkoutApi = {
+  getByDate: (date) => fetchApi(`/dateworkouts/${date}`),
+  getByDateRange: (startDate, endDate) => 
+    fetchApi(`/dateworkouts/range?startDate=${startDate}&endDate=${endDate}`),
+  updateByDate: (date, workouts) => 
+    fetchApi(`/dateworkouts/${date}`, { 
+      method: 'PUT', 
+      body: JSON.stringify({ workouts }) 
+    })
+};
 
 export const scheduleApi = {
   get: () => fetchApi('/schedule'),
@@ -112,12 +122,15 @@ export const scheduleApi = {
       };
     });
     
+    
     // Make a simplified update request
     return fetchApi('/schedule', { 
       method: 'PUT', 
       body: JSON.stringify({ days: validatedDays })
     });
   },
+
+  
   // Keep this method for reference, but we're not using it directly now
   updateDay: (day, workouts) => {
     if (!day || !Array.isArray(workouts)) {

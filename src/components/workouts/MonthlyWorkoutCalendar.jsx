@@ -8,18 +8,39 @@ export default function MonthlyWorkoutCalendar() {
   const [selectedDate, setSelectedDate] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [calendarDays, setCalendarDays] = useState([]);
-  const [scheduledWorkouts, setScheduledWorkouts] = useState({});
+  const [dateSpecificWorkouts, setDateSpecificWorkouts] = useState({});
   const [availableWorkouts, setAvailableWorkouts] = useState([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [localUpdating, setLocalUpdating] = useState(false);
+  const [workoutColors, setWorkoutColors] = useState({});
   
   // Day names for reference
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
   
-  // Initialize available workouts
+  // Color palette for workouts (more distinct colors)
+  const colorPalette = [
+    { bg: 'bg-blue-100', text: 'text-blue-800', darkBg: 'dark:bg-blue-900', darkText: 'dark:text-blue-200' },
+    { bg: 'bg-green-100', text: 'text-green-800', darkBg: 'dark:bg-green-900', darkText: 'dark:text-green-200' },
+    { bg: 'bg-red-100', text: 'text-red-800', darkBg: 'dark:bg-red-900', darkText: 'dark:text-red-200' },
+    { bg: 'bg-purple-100', text: 'text-purple-800', darkBg: 'dark:bg-purple-900', darkText: 'dark:text-purple-200' },
+    { bg: 'bg-yellow-100', text: 'text-yellow-800', darkBg: 'dark:bg-yellow-900', darkText: 'dark:text-yellow-200' },
+    { bg: 'bg-indigo-100', text: 'text-indigo-800', darkBg: 'dark:bg-indigo-900', darkText: 'dark:text-indigo-200' },
+    { bg: 'bg-pink-100', text: 'text-pink-800', darkBg: 'dark:bg-pink-900', darkText: 'dark:text-pink-200' },
+    { bg: 'bg-teal-100', text: 'text-teal-800', darkBg: 'dark:bg-teal-900', darkText: 'dark:text-teal-200' }
+  ];
+  
+  // Initialize available workouts and assign colors
   useEffect(() => {
     if (workouts && workouts.length > 0) {
       setAvailableWorkouts(workouts);
+      
+      // Assign a color to each workout
+      const colors = {};
+      workouts.forEach((workout, index) => {
+        const colorIndex = index % colorPalette.length;
+        colors[workout._id] = colorPalette[colorIndex];
+      });
+      setWorkoutColors(colors);
     }
   }, [workouts]);
   
@@ -54,49 +75,63 @@ export default function MonthlyWorkoutCalendar() {
     const prevMonthDays = prevMonth.getDate();
     
     for (let i = prevMonthDays - daysFromPrevMonth + 1; i <= prevMonthDays; i++) {
+      const date = new Date(year, month - 1, i);
       days.push({
-        date: new Date(year, month - 1, i),
+        date,
         day: i,
         currentMonth: false,
-        dayName: dayNames[new Date(year, month - 1, i).getDay()]
+        dayName: dayNames[date.getDay()],
+        dateString: formatDateString(date)
       });
     }
     
     // Add days from current month
     for (let i = 1; i <= daysInMonth; i++) {
+      const date = new Date(year, month, i);
       days.push({
-        date: new Date(year, month, i),
+        date,
         day: i,
         currentMonth: true,
-        dayName: dayNames[new Date(year, month, i).getDay()]
+        dayName: dayNames[date.getDay()],
+        dateString: formatDateString(date)
       });
     }
     
     // Add days from next month
     for (let i = 1; i <= daysFromNextMonth; i++) {
+      const date = new Date(year, month + 1, i);
       days.push({
-        date: new Date(year, month + 1, i),
+        date,
         day: i,
         currentMonth: false,
-        dayName: dayNames[new Date(year, month + 1, i).getDay()]
+        dayName: dayNames[date.getDay()],
+        dateString: formatDateString(date)
       });
     }
     
     setCalendarDays(days);
+    
+    // Load date-specific workouts for this month range
+    loadWorkoutsForDateRange(days[0].date, days[days.length - 1].date);
   }, [currentMonth]);
   
-  // Convert schedule data for easier access
-  useEffect(() => {
-    if (schedule && schedule.days && Array.isArray(schedule.days)) {
-      const scheduleMap = {};
-      schedule.days.forEach(daySchedule => {
-        if (daySchedule && daySchedule.day && Array.isArray(daySchedule.workouts)) {
-          scheduleMap[daySchedule.day] = daySchedule.workouts || [];
-        }
-      });
-      setScheduledWorkouts(scheduleMap);
+  // Format date as string (YYYY-MM-DD)
+  const formatDateString = (date) => {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  };
+  
+  const loadWorkoutsForDateRange = async (startDate, endDate) => {
+    try {
+      const startDateStr = formatDateString(startDate);
+      const endDateStr = formatDateString(endDate);
+      
+      const workoutsByDate = await dateWorkoutApi.getByDateRange(startDateStr, endDateStr);
+      setDateSpecificWorkouts(workoutsByDate);
+    } catch (error) {
+      console.error('Error loading date-specific workouts:', error);
+      toast.error('Failed to load workouts for this month');
     }
-  }, [schedule]);
+  };
   
   // Handle month navigation
   const goToPreviousMonth = () => {
@@ -125,7 +160,7 @@ export default function MonthlyWorkoutCalendar() {
     setIsModalOpen(true);
   };
   
-  // Handle saving workout to schedule
+  // Handle saving workout to specific date
   const handleSaveSchedule = async (day, selectedWorkoutIds) => {
     try {
       setLocalUpdating(true);
@@ -142,62 +177,14 @@ export default function MonthlyWorkoutCalendar() {
         };
       }).filter(w => w); // Remove any null entries
       
-      // Update local state first for immediate UI feedback
-      const newScheduledWorkouts = { ...scheduledWorkouts };
-      newScheduledWorkouts[day.dayName] = workoutDetails;
-      setScheduledWorkouts(newScheduledWorkouts);
+      // Update local state for immediate UI feedback
+      const newDateSpecificWorkouts = { ...dateSpecificWorkouts };
+      newDateSpecificWorkouts[day.dateString] = workoutDetails;
+      setDateSpecificWorkouts(newDateSpecificWorkouts);
       
-      // Prepare the complete schedule data
-      if (!schedule || !schedule.days || !Array.isArray(schedule.days)) {
-        console.error('Invalid schedule structure, creating new one');
-        
-        // Create a new schedule structure
-        const newDays = dayNames.map(d => ({
-          day: d,
-          workouts: d === day.dayName ? workoutDetails : []
-        }));
-        
-        try {
-          await scheduleApi.update({ days: newDays });
-          toast.success(`Schedule for ${day.dayName} updated successfully`);
-          // Refresh the schedule data
-          fetchSchedule();
-        } catch (error) {
-          console.error('Error saving new schedule:', error);
-          toast.warning('Changes saved locally but may not persist. Please try again later.');
-        }
-      } else {
-        // Clone the existing days array
-        const updatedDays = [...schedule.days];
-        
-        // Find the index of the day to update
-        const dayIndex = updatedDays.findIndex(d => d.day === day.dayName);
-        
-        if (dayIndex !== -1) {
-          // Update the existing day
-          updatedDays[dayIndex] = {
-            ...updatedDays[dayIndex],
-            workouts: workoutDetails
-          };
-        } else {
-          // Add a new day entry
-          updatedDays.push({
-            day: day.dayName,
-            workouts: workoutDetails
-          });
-        }
-        
-        try {
-          // Send the update to the server
-          await scheduleApi.update({ days: updatedDays });
-          toast.success(`Schedule for ${day.dayName} updated successfully`);
-          // Refresh the schedule data
-          fetchSchedule();
-        } catch (error) {
-          console.error('Error saving to backend:', error);
-          toast.warning('Changes saved locally but may not persist. Please try again later.');
-        }
-      }
+      await dateWorkoutApi.updateByDate(day.dateString, workoutDetails);
+    
+      toast.success(`Workouts for ${formatDisplayDate(day.date)} updated successfully`);
     } catch (error) {
       console.error('Error updating schedule:', error);
       toast.error('Failed to update schedule');
@@ -213,6 +200,15 @@ export default function MonthlyWorkoutCalendar() {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   };
   
+  // Format display date
+  const formatDisplayDate = (date) => {
+    return date.toLocaleDateString('en-US', { 
+      month: 'long', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+  
   // Check if a date is today
   const isToday = (date) => {
     const today = new Date();
@@ -221,9 +217,19 @@ export default function MonthlyWorkoutCalendar() {
            date.getFullYear() === today.getFullYear();
   };
   
-  // Get workouts for a specific day
-  const getWorkoutsForDay = (dayName) => {
-    return scheduledWorkouts[dayName] || [];
+  // Get workouts for a specific date
+  const getWorkoutsForDate = (dateString) => {
+    return dateSpecificWorkouts[dateString] || [];
+  };
+  
+  // Get color for a workout
+  const getWorkoutColor = (workoutId) => {
+    return workoutColors[workoutId] || {
+      bg: 'bg-gray-100',
+      text: 'text-gray-800',
+      darkBg: 'dark:bg-gray-700',
+      darkText: 'dark:text-gray-300'
+    };
   };
   
   if (loading || localUpdating) {
@@ -280,56 +286,58 @@ export default function MonthlyWorkoutCalendar() {
           ))}
           
           {/* Calendar days */}
-          {calendarDays.map((day, index) => (
-            <div
-              key={index}
-              onClick={() => handleDayClick(day)}
-              className={`
-                min-h-[100px] p-2 border border-gray-200 dark:border-gray-700 rounded
-                ${day.currentMonth ? 'bg-white dark:bg-gray-800' : 'bg-gray-100 dark:bg-gray-700 opacity-50'}
-                ${isToday(day.date) ? 'ring-2 ring-blue-500' : ''}
-                hover:shadow-md transition-shadow cursor-pointer
-              `}
-            >
-              <div className="flex justify-between items-start mb-1">
-                <span className={`text-sm font-medium ${
-                  isToday(day.date) ? 'text-blue-600 dark:text-blue-400' : 
-                  day.currentMonth ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'
-                }`}>
-                  {day.day}
-                </span>
-                {getWorkoutsForDay(day.dayName).length > 0 && (
-                  <span className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs px-1.5 py-0.5 rounded-full">
-                    {getWorkoutsForDay(day.dayName).length}
+          {calendarDays.map((day, index) => {
+            const dateWorkouts = getWorkoutsForDate(day.dateString);
+            
+            return (
+              <div
+                key={index}
+                onClick={() => handleDayClick(day)}
+                className={`
+                  min-h-[100px] p-2 border border-gray-200 dark:border-gray-700 rounded
+                  ${day.currentMonth ? 'bg-white dark:bg-gray-800' : 'bg-gray-100 dark:bg-gray-700 opacity-50'}
+                  ${isToday(day.date) ? 'ring-2 ring-blue-500' : ''}
+                  hover:shadow-md transition-shadow cursor-pointer
+                `}
+              >
+                <div className="flex justify-between items-start mb-1">
+                  <span className={`text-sm font-medium ${
+                    isToday(day.date) ? 'text-blue-600 dark:text-blue-400' : 
+                    day.currentMonth ? 'text-gray-900 dark:text-white' : 'text-gray-500 dark:text-gray-400'
+                  }`}>
+                    {day.day}
                   </span>
-                )}
-              </div>
-              
-              {/* Workout chips - show max 3 with a +X more indicator */}
-              <div className="space-y-1 mt-1">
-                {getWorkoutsForDay(day.dayName).slice(0, 2).map((workout, idx) => (
-                  <div
-                    key={idx}
-                    className={`text-xs p-1 rounded truncate ${
-                      workout.type === 'strength' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                      workout.type === 'cardio' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
-                      workout.type === 'hiit' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                      workout.type === 'flexibility' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' :
-                      'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
-                    }`}
-                  >
-                    {workout.name}
-                  </div>
-                ))}
+                  {dateWorkouts.length > 0 && (
+                    <span className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs px-1.5 py-0.5 rounded-full">
+                      {dateWorkouts.length}
+                    </span>
+                  )}
+                </div>
                 
-                {getWorkoutsForDay(day.dayName).length > 2 && (
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
-                    +{getWorkoutsForDay(day.dayName).length - 2} more
-                  </div>
-                )}
+                {/* Workout chips - show max 3 with a +X more indicator */}
+                <div className="space-y-1 mt-1">
+                  {dateWorkouts.slice(0, 2).map((workout, idx) => {
+                    const colorScheme = getWorkoutColor(workout.workoutId);
+                    
+                    return (
+                      <div
+                        key={idx}
+                        className={`text-xs p-1 rounded truncate ${colorScheme.bg} ${colorScheme.text} ${colorScheme.darkBg} ${colorScheme.darkText}`}
+                      >
+                        {workout.name}
+                      </div>
+                    );
+                  })}
+                  
+                  {dateWorkouts.length > 2 && (
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      +{dateWorkouts.length - 2} more
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
       
@@ -338,7 +346,8 @@ export default function MonthlyWorkoutCalendar() {
         <ScheduleWorkoutModal
           day={selectedDate}
           availableWorkouts={availableWorkouts}
-          selectedWorkouts={(scheduledWorkouts[selectedDate.dayName] || []).map(w => w.workoutId)}
+          selectedWorkouts={(getWorkoutsForDate(selectedDate.dateString) || []).map(w => w.workoutId)}
+          workoutColors={workoutColors}
           onSave={handleSaveSchedule}
           onCancel={() => {
             setIsModalOpen(false);
@@ -350,7 +359,7 @@ export default function MonthlyWorkoutCalendar() {
   );
 }
 
-function ScheduleWorkoutModal({ day, availableWorkouts, selectedWorkouts, onSave, onCancel }) {
+function ScheduleWorkoutModal({ day, availableWorkouts, selectedWorkouts, workoutColors, onSave, onCancel }) {
   const [selectedWorkoutIds, setSelectedWorkoutIds] = useState(selectedWorkouts || []);
   
   useEffect(() => {
@@ -369,8 +378,19 @@ function ScheduleWorkoutModal({ day, availableWorkouts, selectedWorkouts, onSave
     return date.toLocaleDateString('en-US', { 
       weekday: 'long', 
       month: 'long', 
-      day: 'numeric' 
+      day: 'numeric',
+      year: 'numeric'
     });
+  };
+  
+  // Get color for a workout
+  const getWorkoutColor = (workoutId) => {
+    return workoutColors[workoutId] || {
+      bg: 'bg-gray-100',
+      text: 'text-gray-800',
+      darkBg: 'dark:bg-gray-700',
+      darkText: 'dark:text-gray-300'
+    };
   };
   
   return (
@@ -391,6 +411,12 @@ function ScheduleWorkoutModal({ day, availableWorkouts, selectedWorkouts, onSave
             </button>
           </div>
           
+          <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Workouts scheduled for this specific date (<strong>{day.date.toLocaleDateString()}</strong>), not for every {day.dayName}.
+            </p>
+          </div>
+          
           {availableWorkouts.length === 0 ? (
             <div className="text-center py-4">
               <p className="text-gray-500 dark:text-gray-400">
@@ -399,31 +425,38 @@ function ScheduleWorkoutModal({ day, availableWorkouts, selectedWorkouts, onSave
             </div>
           ) : (
             <div className="space-y-2 mb-6">
-              {availableWorkouts.map(workout => (
-                <div 
-                  key={workout._id} 
-                  className={`border rounded-md p-3 flex items-center space-x-3 cursor-pointer
-                    ${selectedWorkoutIds.includes(workout._id) 
-                      ? 'border-blue-500 bg-blue-50 dark:bg-blue-900 dark:border-blue-400' 
-                      : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-                  onClick={() => handleWorkoutToggle(workout._id)}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedWorkoutIds.includes(workout._id)}
-                    onChange={() => {}}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                      {workout.name}
-                    </h3>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {workout.type} • {workout.duration} minutes
-                    </p>
+              {availableWorkouts.map(workout => {
+                const colorScheme = getWorkoutColor(workout._id);
+                
+                return (
+                  <div 
+                    key={workout._id} 
+                    className={`border rounded-md p-3 flex items-center space-x-3 cursor-pointer
+                      ${selectedWorkoutIds.includes(workout._id) 
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900 dark:border-blue-400' 
+                        : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                    onClick={() => handleWorkoutToggle(workout._id)}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedWorkoutIds.includes(workout._id)}
+                      onChange={() => {}}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <div className="flex-1">
+                      <div className="flex justify-between">
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                          {workout.name}
+                        </h3>
+                        <div className={`ml-2 w-3 h-3 rounded-full ${colorScheme.bg}`}></div>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {workout.type} • {workout.duration} minutes
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           
