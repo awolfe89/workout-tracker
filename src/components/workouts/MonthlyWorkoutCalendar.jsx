@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useWorkout } from '../../context/WorkoutContext';
 import { toast } from 'react-hot-toast';
 import { scheduleApi } from '../../services/api';
+import { dateWorkoutApi } from '../../services/api';
 
 export default function MonthlyWorkoutCalendar() {
   const { schedule, workouts, loading, fetchSchedule } = useWorkout();
