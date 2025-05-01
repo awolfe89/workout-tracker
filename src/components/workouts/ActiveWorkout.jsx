@@ -207,11 +207,14 @@ export default function ActiveWorkout({ onComplete }) {
                 <h3 className="font-semibold text-lg">{ex.name}</h3>
                 <button
                   type="button"
-                  onClick={() => markExerciseComplete(exerciseId)}
+                  onClick={() => isActive && markExerciseComplete(exerciseId)}
+                  disabled={!isActive}
                   className={`text-sm px-3 py-1 rounded-full ${
-                    isCompleted 
-                      ? 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400' 
-                      : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                    !isActive 
+                      ? 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400 cursor-not-allowed' :
+                      isCompleted 
+                        ? 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-400' 
+                        : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
                   }`}
                 >
                   {isCompleted ? 'Completed' : 'Mark Complete'}
@@ -233,30 +236,39 @@ export default function ActiveWorkout({ onComplete }) {
                     exerciseProgress[exerciseId].map((completed, setIndex) => (
                     <label 
                       key={setIndex}
-                      className="flex items-center cursor-pointer bg-white dark:bg-gray-700 p-2 rounded-md border border-gray-200 dark:border-gray-600"
+                      className={`flex items-center ${isActive ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'} 
+                        bg-white dark:bg-gray-700 p-2 rounded-md border border-gray-200 dark:border-gray-600`}
                     >
                       <input
                         type="checkbox"
                         checked={completed}
-                        onChange={() => toggleSetCompletion(exerciseId, setIndex)}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        onChange={() => isActive && toggleSetCompletion(exerciseId, setIndex)}
+                        disabled={!isActive}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded
+                          disabled:opacity-50 disabled:cursor-not-allowed"
                       />
                       <span className="ml-2 text-sm">Set {setIndex + 1}</span>
                     </label>
                   ))}
                 </div>
+                {!isActive && (
+                  <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
+                    Start the workout to track sets
+                  </p>
+                )}
               </div>
               
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => handleRest(ex.rest || 30)}
-                  className="btn btn-secondary text-sm"
+                  className={`btn btn-secondary text-sm ${!isActive && 'opacity-50 cursor-not-allowed'}`}
+                  disabled={!isActive}
                 >
                   Rest {ex.rest || 30}s
                 </button>
                 
-                {!isCompleted && areAllSetsCompleted(exerciseId) && (
+                {!isCompleted && areAllSetsCompleted(exerciseId) && isActive && (
                   <button
                     type="button"
                     onClick={() => markExerciseComplete(exerciseId)}
